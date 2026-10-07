@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function esPropietario() {
+      return request.auth != null && request.auth.token.owner == true;
+    }
+    match /secrets/{id} {
+      allow read, write: if false;
+    }
+    match /settings/{id} {
+      allow read, write: if esPropietario();
+    }
+    match /assets/{id} {
+      allow read, write: if esPropietario();
+    }
+  }
+}

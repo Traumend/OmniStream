@@ -9,10 +9,12 @@
     "lint": "eslint . && pnpm -r --if-present lint",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:integracion": "node scripts/firebase.cjs emulators:exec --only firestore,storage --project demo-omnistream \"pnpm --filter @omnistream/pruebas-integracion test\""
   },
   "devDependencies": {
     "eslint": "^10.12.0",
+    "firebase-tools": "^15.32.1",
     "prettier": "^3.9.9",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
