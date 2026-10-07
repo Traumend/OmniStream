@@ -34,6 +34,8 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 | D12 | Las llamadas a Anthropic incluyen por defecto el respaldo automático del servidor ante rechazos. |
 | D13 | Dirección visual: tema claro neoclásico con neumorfismo suave y acentos dorados, según la imagen de referencia del usuario (sección 5.5). Sustituye el "modo oscuro nativo" del PRD. |
 | D14 | La aplicación web se publica en Vercel (con vista previa por cada pull request). Firebase sigue como backend: Auth, Firestore, Storage y Cloud Functions. |
+| D15 | Las acciones del servidor son Cloud Functions, no rutas de Next.js: una función invocable por dominio (`publicaciones`, `conexiones`, `ia`) y funciones HTTP solo para las URL que llaman las redes. Vercel sirve únicamente la interfaz y no guarda credenciales de servicio. |
+| D16 | La fase 2 se divide en 2A (publicación asistida, de punta a punta en modo manual) y 2B (conectores por API), cada una con su plan. |
 
 ### 2.2 Supuestos de diseño (aceptados en la revisión por secciones)
 
@@ -125,15 +127,13 @@ interface PlatformAdapter {
 ### 5.3 Componentes en ejecución
 
 ```
-Navegador ──> Next.js en Vercel
-               ├─ Interfaz
-               ├─ Rutas de servidor: conexión con redes, acciones de publicación, IA interactiva
-               │
+Navegador ──> Next.js en Vercel (solo interfaz)
                ├──> Firebase Auth (Google; solo el correo permitido)
-               ├──> Firestore
-               └──> Cloud Storage (subida reanudable directa desde el navegador)
+               ├──> Firestore (lectura; las publicaciones se escriben desde funciones)
+               ├──> Cloud Storage (subida reanudable directa desde el navegador)
+               └──> Funciones invocables: publicaciones, conexiones, IA interactiva
 
-Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager
+Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager + Cloud Messaging
 ```
 
 ### 5.4 Funciones
@@ -144,18 +144,22 @@ Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager
 | `antesDeIniciarSesion` | Bloqueo de Auth | Repite la verificación en cada inicio de sesión. | 1 |
 | `procesarArchivo` | Fin de subida a Storage | Lee los datos técnicos con ffprobe por URL firmada, sin descargar el archivo completo. Extrae 3 fotogramas (segundo 1, mitad, un segundo antes del final). Convierte heic a jpg. | 1 |
 | `generarRecorte` | Cola | Genera el archivo derivado (ffmpeg para video, sharp para imagen) a la resolución recomendada de la red. Memoria 4 GiB, tiempo máximo 30 min. | 3 |
-| `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Tiempo máximo 60 min. | 2 |
-| `comentarReferencia` | Cola | Publica la referencia al Padre. | 2 |
-| `alCambiarDestino` | Escritura en `targets` | Recalcula el estado de la publicación, encola las referencias pendientes de las Hijas cuando se publica un Principal y envía notificaciones push (pendiente manual, fallo). | 2 |
-| `encolarPendientes` | Diaria | Encola los destinos programados que entran en la ventana de 30 días y aún no tienen tarea. | 2 |
-| `renovarSesiones` | Diaria | Renueva los accesos a las redes antes de que caduquen. | 2 |
-| `limpiarRetencion` | Diaria | Purga originales y derivados según la política de retención. | 2 |
+| `publicaciones` | Invocable | Acciones del usuario sobre publicaciones: guardar, eliminar, desvincular, programar o publicar ahora, mover, cancelar, reintentar, marcar publicada y marcar la referencia como publicada. | 2A |
+| `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Tiempo máximo 60 min. En 2A solo resuelve el modo manual; 2B agrega la publicación por API. | 2A / 2B |
+| `comentarReferencia` | Cola | Publica la referencia al Padre por API. | 2B |
+| `alCambiarDestino` | Escritura en `targets` | Recalcula el estado de la publicación, marca las referencias de las Hijas como pendientes cuando se publica su Principal y envía notificaciones push (pendiente manual, fallo, referencia pendiente). En 2B además encola `comentarReferencia`. | 2A |
+| `encolarPendientes` | Cada hora | Encola los destinos programados que entran en la ventana de 29 días y aún no tienen tarea, y vuelve a encolar los destinos atascados en `publicando` con el `lease` vencido. | 2A |
+| `conexiones` | Invocable y HTTP | Inicia la conexión con una red, recibe el retorno de OAuth y desconecta. | 2B |
+| `borradoDatosMeta` | HTTP | Recibe las solicitudes de borrado de datos de Meta. | 2B |
+| `media` | HTTP | Sirve archivos desde el dominio propio cuando una red exige dominio verificado. | 2B |
+| `renovarSesiones` | Diaria | Renueva los accesos a las redes antes de que caduquen. | 2B |
+| `limpiarRetencion` | Diaria | Purga originales y derivados según la política de retención. | 2A |
 | `sincronizarMetricas` | Cada 6 horas | Sincroniza métricas por antigüedad y guarda los seguidores diarios. | 5 |
 | `descubrirTendencias` | Diaria | Recolecta, evalúa y guarda tendencias. | 6 |
 | `analizarRendimiento` | Semanal | Calcula las cifras y genera aprendizajes. | 6 |
 | `generarLocucion` | Cola | Convierte un guion en audio con OpenAI. | 6 |
 
-Las acciones que encolan tareas (programar, publicar ahora, cancelar, marcar como publicada) son rutas del servidor de Next.js que usan el SDK de administración de Firebase para escribir en Firestore y encolar en las colas de las funciones.
+Las acciones que escriben publicaciones o encolan tareas pasan por la función invocable `publicaciones`, que exige el claim `owner`, valida con `core` y escribe con el SDK de administración. El navegador solo lee `posts` y `targets`. Las funciones de IA interactiva (fase 4) siguen el mismo patrón con la invocable `ia`.
 
 ### 5.5 Dirección visual
 
@@ -200,7 +204,7 @@ Tomada de la imagen de referencia del usuario: estética neoclásica, clara y c�
 | `/ajustes/general`, `/ajustes/conexiones`, `/ajustes/ia`, `/ajustes/perfil` | Configuración |
 | `/privacidad` | Política de privacidad (requerida por Meta, TikTok y Google) |
 
-Rutas del servidor (`/api/...`): `conexiones/[red]/iniciar`, `conexiones/[red]/callback`, `conexiones/[red]/desconectar`, `publicaciones/[id]/programar`, `publicaciones/[id]/publicar-ahora`, `publicaciones/[id]/cancelar`, `publicaciones/[id]/[red]/marcar-publicada`, `publicaciones/[id]/[red]/reintentar`, `ia/llaves`, `ia/perfil`, `ia/copy`, `ia/guion`, `ia/planificar`, `meta/borrado-datos`, y `media/[token]` (sirve archivos desde el dominio propio cuando una red exige dominio verificado).
+Next.js no tiene rutas de servidor: las acciones van a las funciones de la sección 5.4. Las URL públicas que piden las redes (retorno de OAuth, borrado de datos de Meta y `media/[token]`) se publican bajo `/api/...` del dominio de Vercel mediante reescrituras hacia las funciones HTTP, para que las redes vean un solo dominio (fase 2B).
 
 ---
 
@@ -271,6 +275,7 @@ Un solo inicio de sesión de Meta crea las conexiones `facebook` e `instagram`.
   status: 'subiendo' | 'procesando' | 'listo' | 'fallido' | 'purgado';
   error?: string;
   createdAt: Timestamp; purgeAt?: Timestamp;
+  retainUntil?: Timestamp;           // "Posponer purga": la purga no ocurre antes de esta fecha
 }
 ```
 
@@ -287,7 +292,8 @@ Rutas en Storage: `originales/{assetId}`, `fotogramas/{assetId}/{start|middle|en
   title: string;                     // nombre interno y título por defecto en YouTube
   assetId?: string;                  // ausente en 'idea'
   base: { text: string; hashtags: string[] };
-  scheduledAt?: Timestamp;           // en 'idea' es la fecha sugerida
+  scheduledAt: Timestamp | null;     // en 'idea' es la fecha sugerida; null explícito para consultar los borradores sin fecha
+  targetStatus: Partial<Record<Platform, Target['status']>>; // desnormalizado por alCambiarDestino para el calendario
   pillarId?: string; trendId?: string; planId?: string; planItemId?: string;
   script?: Script;                   // guion generado (sección 9.6)
   createdAt: Timestamp; updatedAt: Timestamp;
@@ -308,10 +314,12 @@ Rutas en Storage: `originales/{assetId}`, `fotogramas/{assetId}/{start|middle|en
     allowComments: boolean; allowDuet: boolean; allowStitch: boolean;
     commercial: { enabled: boolean; yourBrand: boolean; brandedContent: boolean };
   };
-  scheduledAt?: Timestamp;           // efectivo (override o el de la publicación), desnormalizado para el calendario
+  scheduledAt?: Timestamp;           // efectivo (override o el de la publicación)
   scheduleVersion: number;
+  enqueuedVersion?: number;          // versión para la que ya existe una tarea en la cola
   publishMode: 'api' | 'manual';     // copiado de la conexión al programar
   status: 'borrador' | 'programada' | 'publicando' | 'publicada' | 'fallida' | 'pendiente_manual' | 'cancelada';
+  statusChangedAt: Timestamp;        // última transición de estado (retención y orden)
   lease?: { attemptId: string; until: Timestamp };
   checkpoint?: { stage: string; data: Record<string, unknown> };
   derivative?: { cropHash: string; storagePath?: string; status: 'pendiente' | 'generando' | 'listo' | 'fallido' };
@@ -327,7 +335,16 @@ Rutas en Storage: `originales/{assetId}`, `fotogramas/{assetId}/{start|middle|en
 
 // Crop: coordenadas normalizadas 0..1 sobre el original ya rotado
 type Crop = { aspect: '16:9' | '9:16' | '1:1' | '4:5' | '1.91:1'; x: number; y: number; w: number; h: number };
+
+// notifications/{id}  — registro de cada aviso; el id deriva del evento que lo produjo, así un reintento no duplica el push
+{
+  tipo: 'pendiente_manual' | 'fallo' | 'referencia';
+  titulo: string; cuerpo: string; enlace: string;  // enlace: ruta de la app
+  createdAt: Timestamp; push: { enviados: number; fallidos: number };
+}
 ```
+
+Desde el cliente, `posts`, `targets`, `attempts`, `notifications` y `connections` son de solo lectura.
 
 ### 6.5 Métricas
 
@@ -387,7 +404,7 @@ type NormalizedMetrics = {
 ### 6.7 Reglas de la jerarquía Padre/Hijo
 
 1. Solo puede ser `principal` una publicación con destino `youtube` en formato `video_largo`.
-2. Una `hija` es un video corto o una imagen y su `parentId` apunta a un `principal`. Validado en `core` y en las rutas del servidor.
+2. Una `hija` es un video corto o una imagen y su `parentId` apunta a un `principal`. Validado en `core` y en la función `publicaciones`.
 3. Al publicarse una Hija en Facebook, Instagram o YouTube, `comentarReferencia` publica el primer comentario con el título y la URL del Principal. En TikTok, la referencia se agrega al final de la descripción al publicar: siempre incluye el título del Principal y, si ya está publicado, su URL. En TikTok, `parentRef` pasa directamente a `publicada` con la publicación.
 4. Si el Principal aún no tiene `remote.url`, la referencia queda en `en_espera`; cuando el Principal se publica, `alCambiarDestino` encola todas las referencias en espera.
 5. Eliminar un Principal con Hijas no está permitido; primero se desvinculan.
@@ -404,8 +421,8 @@ type NormalizedMetrics = {
 
 ### 6.9 Índices
 
-- Grupo de colecciones `targets`: `scheduledAt` ascendente (calendario); `status` + `scheduledAt` (encolado y pendientes); `remote.publishedAt` (sincronización por antigüedad).
-- `posts`: `status` + `scheduledAt` (ideas en el calendario); `parentId` (Hijas de un Principal).
+- Grupo de colecciones `targets`: `status` + `scheduledAt` (encolado, recuperación y pendientes); `parentRef.status` + `scheduledAt` (referencias pendientes); `remote.publishedAt` (sincronización por antigüedad, fase 5).
+- `posts`: `scheduledAt` (calendario, incluye las ideas); `parentId` (Hijas de un Principal); `assetId` (retención). Son índices simples.
 - `trends`: `status` + `discoveredAt`. `insights`: `status` + `createdAt`. `aiRuns`: `createdAt` (consumo mensual).
 
 ---
@@ -422,17 +439,17 @@ Una tarjeta por red muestra estado, cuenta, caducidad del acceso, interruptor de
 | YouTube | OAuth de Google con acceso sin conexión. Permisos para subir, comentar y leer métricas. | Se renueva con el token de actualización. | La app de Google debe estar "En producción". |
 | TikTok | Login Kit con PKCE. Permisos para publicar, subir y listar videos. | 24 horas; se renueva automáticamente. | |
 
-Cada inicio de sesión usa un valor `state` (y PKCE donde aplica) guardado en una cookie httpOnly. `renovarSesiones` renueva los accesos a diario y `publicarDestino` lo hace también si el acceso vence en menos de 10 minutos. Un error de autenticación marca la conexión como `expirada` y muestra un aviso para reconectar.
+Cada inicio de sesión usa un valor `state` (y PKCE donde aplica) guardado en Firestore, inaccesible desde el cliente y con caducidad de 10 minutos. `renovarSesiones` renueva los accesos a diario y `publicarDestino` lo hace también si el acceso vence en menos de 10 minutos. Un error de autenticación marca la conexión como `expirada` y muestra un aviso para reconectar.
 
 ### 7.2 Ciclo de una publicación
 
-1. **Programar:** la ruta del servidor valida la publicación con las reglas de `core`. En una transacción, cada destino pasa a `programada`, incrementa `scheduleVersion`, copia `publishMode` de su conexión y fija su `scheduledAt` efectivo. Después encola en `publicarDestino` una tarea `{ postId, platform, scheduleVersion }` con `scheduleTime`, si cae dentro de 30 días. "Publicar ahora" sigue el mismo camino con la hora actual.
-2. **Tomar la tarea:** en una transacción se verifica `status = 'programada'` y que `scheduleVersion` coincida. Si se cumple, el destino pasa a `publicando` con `lease` de 15 minutos. Si no coincide la versión, la tarea termina sin hacer nada. Si hay un `lease` vigente de otro intento, también termina sin hacer nada. Si el `lease` venció, el intento continúa desde el `checkpoint`.
+1. **Programar:** la función `publicaciones` valida la publicación con las reglas de `core`. En una transacción, cada destino pasa a `programada`, incrementa `scheduleVersion`, copia `publishMode` de su conexión y fija su `scheduledAt` efectivo. Después encola en `publicarDestino` una tarea `{ postId, platform, scheduleVersion }` con `scheduleTime`, si cae dentro de 29 días (Cloud Tasks admite hasta 30). El id de la tarea es `{postId}-{red}-v{scheduleVersion}`, así encolar dos veces la misma versión no la duplica; al encolar se guarda `enqueuedVersion`. "Publicar ahora" sigue el mismo camino con la hora actual.
+2. **Tomar la tarea:** en una transacción se verifica `status = 'programada'` y que `scheduleVersion` coincida. Si se cumple, el destino pasa a `publicando` con `lease` de 15 minutos. Si no coincide la versión, la tarea termina sin hacer nada. Si faltan más de 60 segundos para `scheduledAt`, también termina sin hacer nada (Cloud Tasks nunca entrega antes de tiempo; el emulador sí). Si hay un `lease` vigente de otro intento, también termina sin hacer nada. Si el `lease` venció, el intento continúa desde el `checkpoint`; `encolarPendientes` vuelve a encolar cada hora los destinos `publicando` con el `lease` vencido.
 3. **Validar:** se aplican las reglas de `core`. Si fallan, el destino queda `fallida` con error `definitivo`.
 4. **Recortar:** si existe `overrides.crop` y el derivado no está `listo`, se genera en ese momento.
 5. **Modo manual:** si `publishMode = 'manual'`, el destino pasa a `pendiente_manual` y se envía una notificación push (sección 7.5). El archivo final ya está listo para descargar.
 6. **Publicar por etapas:** se llama a `publishStep` en un ciclo. Después de cada paso que crea algo en la red, se guarda el `checkpoint` antes de continuar. Si un paso pide esperar (`delaySec`), la función se vuelve a encolar y termina.
-7. **Cerrar:** se guarda `remote`, el destino pasa a `publicada` y se encola `comentarReferencia` si la publicación es una Hija (o queda `en_espera`).
+7. **Cerrar:** se guarda `remote` y el destino pasa a `publicada`. Si la publicación es una Hija, `alCambiarDestino` deja su referencia `pendiente` (o `en_espera` si el Principal aún no tiene URL) y, en 2B, encola `comentarReferencia` cuando la conexión permite comentar.
 
 Mover una publicación en el calendario o editar su hora repite el paso 1. La tarea anterior encontrará otra versión y no hará nada. Cancelar pasa los destinos no publicados a `cancelada`.
 
@@ -449,7 +466,7 @@ Las fotos en TikTok requieren que el archivo se sirva desde un dominio verificad
 
 ### 7.4 Reglas por red (`packages/core/rules`)
 
-Se guardan como datos, no como código disperso. Los valores iniciales se verifican contra la documentación oficial en la fase 2.
+Se guardan como datos, no como código disperso. Los valores iniciales se verifican contra la documentación oficial en la fase 2B.
 
 | Red / formato | Duración | Proporción | Texto |
 |---|---|---|---|
@@ -472,8 +489,10 @@ La pantalla de publicación de TikTok muestra el nombre de la cuenta, un selecto
 
 - A la hora programada el destino pasa a `pendiente_manual` y llega una notificación push.
 - `/pendientes` lista los destinos pendientes ordenados por hora objetivo.
-- `/pendientes/[postId]/[red]` es el paquete: botón de descarga del archivo final (enlace firmado), texto final listo para copiar (texto + hashtags + referencia al Padre en TikTok), título y campos propios de la red, y la hora objetivo. La estructura es simple y estable para que Claude en el navegador pueda seguirla.
+- `/pendientes/[postId]/[red]` es el paquete: botón de descarga del archivo final (enlace de descarga de Storage), texto final listo para copiar (texto + hashtags + referencia al Padre en TikTok), título y campos propios de la red, y la hora objetivo. La estructura es simple y estable para que Claude en el navegador pueda seguirla.
 - Al pegar la URL publicada, `parsePublicUrl` extrae el id; el destino pasa a `publicada` y, si es una Hija, el texto de la referencia queda visible para comentarlo a mano (o se publica por API si la conexión tiene acceso para comentar).
+- Las referencias al Padre pendientes también aparecen en `/pendientes`, con su texto listo para copiar y el botón "Marcar referencia como publicada".
+- La barra lateral muestra el número de pendientes. Las notificaciones push requieren activarlas en cada dispositivo desde Ajustes; en iPhone, además, instalar la app en la pantalla de inicio.
 
 ### 7.6 Errores, reintentos y duplicados
 
@@ -539,6 +558,7 @@ Maquetas de teléfono por red, lado a lado (una a la vez en pantallas angostas),
 - Cada evento es una publicación con íconos de sus redes coloreados por estado. Las publicaciones en estado `idea` aparecen como marcadores con estilo distinto.
 - Arrastrar: en la vista mensual cambia el día y conserva la hora; en la semanal se mueve en intervalos de 15 minutos. No se permite arrastrar al pasado ni mover publicaciones ya publicadas o en curso. Mover actualiza en una transacción todos los destinos sin hora propia y los vuelve a programar.
 - Clic en un evento abre `/publicaciones/[id]`.
+- Un panel junto al calendario lista los borradores sin fecha.
 
 ---
 
@@ -552,7 +572,7 @@ Maquetas de teléfono por red, lado a lado (una a la vez en pantallas angostas),
 
 ### 9.2 Llaves, modelos y consumo
 
-- La llave se envía a `/api/ia/llaves`, que la valida consultando la lista de modelos del proveedor. Si es válida se guarda cifrada en `secrets` y `settings/app.ai.keys` guarda el estado y los últimos 4 caracteres.
+- La llave se envía a la función invocable `ia`, que la valida consultando la lista de modelos del proveedor. Si es válida se guarda cifrada en `secrets` y `settings/app.ai.keys` guarda el estado y los últimos 4 caracteres.
 - El selector de modelos se llena con esa lista; ningún nombre de modelo queda fijo en el código salvo los valores por defecto.
 - Valores por defecto en Anthropic: `claude-opus-5-5`, con esfuerzo `low` para copy, `medium` para guion y plan, `high` para análisis. Se puede elegir otro modelo por tarea (por ejemplo, `claude-sonnet-5-5`).
 - Peticiones a Anthropic: salida estructurada (`output_config.format` con esquemas Zod), búsqueda web del servidor (`web_search_20260209`) en las tareas que la usan, caché del prefijo estable (perfil y aprendizajes activos), respuesta en flujo para las tareas interactivas, verificación de `stop_reason` y respaldo del servidor ante rechazos (`fallbacks: "default"`).
@@ -563,7 +583,7 @@ Maquetas de teléfono por red, lado a lado (una a la vez en pantallas angostas),
 
 ### 9.3 Perfil de contenido
 
-`settings/profile` (sección 6.1). Se llena a mano o lo genera la IA a partir de una descripción libre (`/api/ia/perfil`). Se incluye al inicio de cada petición junto con los aprendizajes activos.
+`settings/profile` (sección 6.1). Se llena a mano o lo genera la IA a partir de una descripción libre (función invocable `ia`). Se incluye al inicio de cada petición junto con los aprendizajes activos.
 
 ### 9.4 Copy por red (fase 4)
 
@@ -660,7 +680,7 @@ En `/estadisticas`, la sección Padre/Hijo lista los Principales con número de 
 
 ## 11. Seguridad
 
-- **Acceso:** Firebase Auth con Google. `antesDeCrearUsuario` rechaza cualquier correo distinto al configurado (parámetro `ALLOWED_EMAIL` de Functions) o sin verificar, y asigna el claim `owner`; `antesDeIniciarSesion` repite la verificación en cada inicio de sesión. Reglas de Firestore y Storage: lectura y escritura solo con el claim `owner`; `secrets` sin acceso desde el cliente. Las rutas del servidor verifican la sesión (cookie de sesión de Firebase) en cada llamada.
+- **Acceso:** Firebase Auth con Google. `antesDeCrearUsuario` rechaza cualquier correo distinto al configurado (parámetro `ALLOWED_EMAIL` de Functions) o sin verificar, y asigna el claim `owner`; `antesDeIniciarSesion` repite la verificación en cada inicio de sesión. Reglas de Firestore y Storage: lectura y escritura solo con el claim `owner`; `secrets` sin acceso desde el cliente. Las funciones invocables exigen en cada llamada un token de Firebase con el claim `owner`.
 - **Cifrado:** AES-256-GCM con llave en Secret Manager; `keyVersion` permite rotarla.
 - **Secretos de la aplicación** (credenciales de las apps de Meta, Google y TikTok, llave de cifrado): Secret Manager.
 - **Archivos:** privados; acceso mediante enlaces firmados de corta duración.
@@ -676,7 +696,7 @@ En `/estadisticas`, la sección Padre/Hijo lista los Principales con número de 
 | `packages/core` | Unitarias (Vitest), escritas antes del código | Reglas por red, combinación de ajustes, máquinas de estados, cálculo de recortes (dimensiones pares para ffmpeg), normalización de métricas, impulso estimado, retención. |
 | `packages/platforms` | Contrato con respuestas HTTP grabadas | Cada etapa de publicación, clasificación de errores, continuación desde el `checkpoint`, `findExisting`, `parsePublicUrl`. |
 | `packages/ai` | Proveedores simulados | Validación de esquemas, reintento por salida inválida, registro en `aiRuns`, copia de referencia de cada prompt. |
-| Funciones y reglas | Integración con el Emulator Suite de Firebase | Toma de tareas con versión y `lease`, encolado diario, retención, reglas de seguridad (`@firebase/rules-unit-testing`). |
+| Funciones y reglas | Integración con el Emulator Suite de Firebase | Funciones invocables llamadas con el SDK cliente, toma de tareas con versión y `lease`, encolado, retención, reglas de seguridad (`@firebase/rules-unit-testing`). La lógica de las funciones programadas se prueba importándola con Firestore y Storage del emulador. |
 | Aplicación | Extremo a extremo (Playwright) sobre emuladores | Subir → canvas → programar → mover en el calendario → pendiente manual → marcar publicada. |
 
 Las pruebas automáticas no hacen llamadas reales a las redes ni a los proveedores de IA. Cuando se aprueba cada app de red se ejecuta una lista de verificación manual documentada.
@@ -694,9 +714,10 @@ Las pruebas automáticas no hacen llamadas reales a las redes ni a los proveedor
 | Elemento | Fase |
 |---|---|
 | Proyecto de Firebase en plan Blaze con alerta de presupuesto; Authentication con Identity Platform; proyecto de Vercel conectado al repositorio | 1 |
-| App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2 |
-| App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2 |
-| App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2 |
+| Llave VAPID de Cloud Messaging, correo de contacto para `/privacidad` y permisos de Cloud Tasks y Cloud Messaging para las funciones | 2A |
+| App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2B |
+| App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2B |
+| App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2B |
 | Llaves de Anthropic y OpenAI | 4 |
 | Llave pública de Google para YouTube (tendencias) | 6 |
 
@@ -709,7 +730,8 @@ Cada fase tendrá su propio plan de implementación. Una fase termina cuando se 
 | Fase | Contenido | Criterios de aceptación |
 |---|---|---|
 | 1. Fundación | Monorepo, CI, configuración de Firebase, acceso restringido, estructura de la interfaz (español, tema neoclásico), Ajustes generales, subida reanudable, `procesarArchivo`, biblioteca de archivos, reglas de seguridad. | Solo el correo permitido entra. Un video de 2 GB se sube, se reanuda tras cortar la conexión y muestra sus datos técnicos y 3 fotogramas. Las reglas impiden leer `secrets` desde el cliente. |
-| 2. Publicación | Modelo de publicaciones y destinos, editor básico (destinos, textos, hora, jerarquía), conexiones con lectura y publicación separadas, conectores de las 4 redes y `manual`, colas y funciones de publicación, modo asistido con notificaciones, referencia al Padre, calendario con arrastrar y soltar, retención, `/privacidad` y borrado de datos de Meta. | Una publicación programada a 4 redes en modo manual llega a `/pendientes` con notificación y se marca publicada con su URL. Con una red conectada por API se publica de punta a punta. Mover una publicación en el calendario no la duplica. Una Hija publicada antes que su Principal recibe su referencia al publicarse este. |
+| 2A. Publicación asistida | Modelo de publicaciones y destinos, editor básico (archivo, destinos, textos, campos de YouTube, hora, jerarquía), función `publicaciones`, cola y `publicarDestino` en modo manual, modo asistido con notificaciones push, referencia al Padre manual, calendario con arrastrar y soltar, retención, `/privacidad` con instrucciones de borrado de datos. | Una publicación programada a 4 redes en modo manual llega a `/pendientes` con notificación y se marca publicada con su URL. Mover una publicación en el calendario no la duplica. Una Hija publicada antes que su Principal recibe su referencia al publicarse este. |
+| 2B. Conectores | Conexiones con lectura y publicación separadas, OAuth de Meta, YouTube y TikTok, conectores de las 4 redes con publicación por etapas, `comentarReferencia`, `renovarSesiones`, `media`, interfaz de publicación de TikTok (7.4.1), borrado de datos de Meta. | Con una red conectada por API se publica de punta a punta. Las verificaciones V1 a V3 quedan resueltas. |
 | 3. Smart Canvas | Pasos completos de creación, advertencias, zonas seguras, recorte con `generarRecorte`, ajustes por red, vista previa final. | Un video 16:9 recortado a 9:16 para TikTok y 1:1 para Facebook genera dos archivos distintos y cada red publica el suyo. Las advertencias del canvas coinciden con las validaciones del servidor. |
 | 4. IA de texto | Ajustes de IA, validación y cifrado de llaves, perfil de contenido, copy por red en paralelo, transcripción opcional, `aiRuns` y límite mensual. | Con una llave válida se generan versiones por red que respetan los límites y se aceptan una por una. Una llave inválida se detecta al guardarla. |
 | 5. Estadísticas | `sincronizarMetricas`, capturas diarias, seguidores, dashboard, análisis Padre/Hijo. | El dashboard muestra métricas reales de al menos una red conectada y el impulso estimado de un Principal con historial suficiente. |
@@ -723,9 +745,9 @@ Cada punto tiene definido su comportamiento si la verificación resulta negativa
 
 | # | Punto | Fase | Si resulta negativo |
 |---|---|---|---|
-| V1 | ¿Lo publicado por la app de Meta en modo desarrollo es visible públicamente? | 2 | Facebook e Instagram en modo manual hasta App Review. |
-| V2 | ¿TikTok permite enviar a la bandeja de borradores y leer métricas sin auditoría? | 2 / 5 | Publicación manual; TikTok sin métricas hasta la auditoría. |
-| V3 | Límites vigentes de cada red (tabla 7.4) y nombres vigentes de las métricas de Meta. | 2 / 5 | Se ajustan los datos en `core/rules` y en el conector. |
+| V1 | ¿Lo publicado por la app de Meta en modo desarrollo es visible públicamente? | 2B | Facebook e Instagram en modo manual hasta App Review. |
+| V2 | ¿TikTok permite enviar a la bandeja de borradores y leer métricas sin auditoría? | 2B / 5 | Publicación manual; TikTok sin métricas hasta la auditoría. |
+| V3 | Límites vigentes de cada red (tabla 7.4) y nombres vigentes de las métricas de Meta. | 2B / 5 | Se ajustan los datos en `core/rules` y en el conector. |
 | V4 | ¿YouTube Analytics expone el tráfico de "video relacionado" de los Shorts? | 5 | Se omite esa métrica. |
 | V5 | Cuota gratuita vigente del plan Blaze para Storage y Functions. | 1 | Se ajusta `retentionDays` y la alerta de presupuesto. |
 
