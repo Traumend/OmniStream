@@ -32,6 +32,7 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 | D10 | Modo asistido (manual) y política de retención de archivos, confirmados. |
 | D11 | La referencia al Padre en una Hija se publica como primer comentario donde la API lo permita; en TikTok va en la descripción. |
 | D12 | Las llamadas a Anthropic incluyen por defecto el respaldo automático del servidor ante rechazos. |
+| D13 | Dirección visual: tema claro neoclásico con neumorfismo suave y acentos dorados, según la imagen de referencia del usuario (sección 5.5). Sustituye el "modo oscuro nativo" del PRD. |
 
 ### 2.2 Supuestos de diseño (aceptados en la revisión por secciones)
 
@@ -60,6 +61,7 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 - Subtítulos, filtros y efectos.
 - Carruseles de varias imágenes.
 - Generación de imágenes con IA (solo sugerencias en texto).
+- Modo oscuro (los colores se definen como variables para poder agregarlo después).
 - Enlaces cortos propios para contar clics hacia el video Principal.
 - Multiusuario, equipos, facturación, varios idiomas de interfaz.
 - Publicación autónoma por IA sin aceptación explícita del usuario.
@@ -71,6 +73,7 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 | Tema | Restricción | Cómo la maneja el diseño |
 |---|---|---|
 | Firebase | Cloud Storage, Cloud Functions y App Hosting requieren el plan Blaze (tarjeta registrada). Blaze conserva una cuota gratuita. | Alertas de presupuesto; política de retención de archivos. |
+| Firebase Auth | Las funciones de bloqueo de Auth requieren activar Firebase Authentication con Identity Platform. | Se activa en la configuración de la fase 1. |
 | Cloud Tasks | Solo programa tareas hasta 30 días en el futuro. | La función diaria `encolarPendientes` encola lo que entra en esa ventana. |
 | YouTube | Mientras el proyecto no pase la auditoría, los videos subidos por API quedan bloqueados como privados. Con la app de Google en estado "Prueba", el acceso caduca cada 7 días. | YouTube publica en modo manual hasta la auditoría; la app de Google se pasa a "En producción" (aunque no esté verificada). La lectura de métricas no depende de la auditoría. |
 | TikTok | Sin auditoría, lo publicado por API solo es visible para el autor. La API no permite publicar comentarios. Las fotos solo se publican si TikTok descarga el archivo desde un dominio verificado. La auditoría exige elementos concretos en la interfaz de publicación. | Modo manual hasta la auditoría; referencia al Padre en la descripción; interfaz de TikTok con los elementos exigidos (sección 7.4.1). |
@@ -87,7 +90,7 @@ Monorepo con pnpm:
 
 | Ruta | Contenido |
 |---|---|
-| `apps/web` | Next.js (App Router) con TypeScript estricto, Tailwind CSS, shadcn/ui sobre Radix, Framer Motion, Recharts y FullCalendar (edición MIT). Modo oscuro nativo. Se despliega en Firebase App Hosting. |
+| `apps/web` | Next.js (App Router) con TypeScript estricto, Tailwind CSS, shadcn/ui sobre Radix, Framer Motion, Recharts y FullCalendar (edición MIT). Tema claro neoclásico (sección 5.5). Se despliega en Firebase App Hosting. |
 | `functions/` | Cloud Functions de 2.ª generación en TypeScript. Se empaquetan con esbuild en un solo archivo antes de desplegarse, para resolver los paquetes internos del monorepo. |
 | `packages/core` | Dominio puro, sin dependencias de red: tipos, esquemas Zod, reglas por red, combinación de ajustes por red, máquinas de estados, cálculo de recortes, normalización de métricas y cálculo del impulso estimado. |
 | `packages/platforms` | Un conector por red con la misma interfaz: `facebook`, `instagram`, `youtube`, `tiktok` y `manual`. |
@@ -136,7 +139,8 @@ Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager
 
 | Función | Disparador | Propósito | Fase |
 |---|---|---|---|
-| `antesDeCrearUsuario` | Bloqueo de Auth | Rechaza cualquier correo distinto al permitido. | 1 |
+| `antesDeCrearUsuario` | Bloqueo de Auth | Rechaza cualquier correo distinto al permitido o sin verificar y asigna el claim `owner`. | 1 |
+| `antesDeIniciarSesion` | Bloqueo de Auth | Repite la verificación en cada inicio de sesión. | 1 |
 | `procesarArchivo` | Fin de subida a Storage | Lee los datos técnicos con ffprobe por URL firmada, sin descargar el archivo completo. Extrae 3 fotogramas (segundo 1, mitad, un segundo antes del final). Convierte heic a jpg. | 1 |
 | `generarRecorte` | Cola | Genera el archivo derivado (ffmpeg para video, sharp para imagen) a la resolución recomendada de la red. Memoria 4 GiB, tiempo máximo 30 min. | 3 |
 | `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Tiempo máximo 60 min. | 2 |
@@ -152,7 +156,35 @@ Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager
 
 Las acciones que encolan tareas (programar, publicar ahora, cancelar, marcar como publicada) son rutas del servidor de Next.js que usan el SDK de administración de Firebase para escribir en Firestore y encolar en las colas de las funciones.
 
-### 5.5 Rutas de la aplicación
+### 5.5 Dirección visual
+
+Tomada de la imagen de referencia del usuario: estética neoclásica, clara y cálida, con neumorfismo suave.
+
+- **Paleta** (variables CSS; contraste AA verificado por prueba automática):
+
+| Variable | Valor | Uso |
+|---|---|---|
+| `--fondo` | `#F3ECE1` | Fondo general, con textura de mármol sutil |
+| `--superficie` | `#F8F3EB` | Tarjetas y paneles |
+| `--superficie-elevada` | `#FCF9F4` | Elementos destacados, menús |
+| `--borde` | `#E4D7C5` | Bordes finos |
+| `--texto` | `#33281F` | Títulos y texto principal |
+| `--texto-secundario` | `#6B5B4B` | Descripciones y etiquetas |
+| `--texto-tenue` | `#857360` | Solo texto de 18 px o más, o decorativo |
+| `--oro` | `#B08442` | Íconos, bordes activos, gráficos (no texto) |
+| `--oro-claro` | `#D9B77A` | Ornamentos |
+| `--oro-profundo` | `#7E5A24` | Texto de acento y enlaces |
+| `--boton-oro-inicio` / `--boton-oro-fin` | `#8A6328` / `#6F4E1E` | Degradado del botón principal |
+| `--sobre-oro` | `#FFFDF8` | Texto sobre el botón principal |
+| `--exito` / `--alerta` / `--peligro` | `#3F6B3A` / `#85590C` / `#9A3B2A` | Estados |
+
+- **Tipografía:** Cormorant Garamond (títulos y navegación), Cinzel (logotipo, lema y etiquetas en mayúsculas espaciadas), Source Serif 4 (texto, formularios y cifras con números tabulares).
+- **Neumorfismo:** superficies elevadas con sombra doble (oscura cálida abajo a la derecha, clara arriba a la izquierda), estados presionados con sombra interior, radios de 18 px. El botón principal usa el degradado dorado.
+- **Ornamentos:** logotipo con laurel en SVG, borde de meandro griego en SVG y textura de mármol generada con CSS/SVG. Las imágenes de estatuas y columnas son opcionales y solo se usan si el usuario aporta archivos con derechos de uso.
+- **Iconos:** de trazo fino en dorado.
+- **Navegación:** barra superior con logotipo, lema "UNA VISIÓN. CADA PLATAFORMA." y accesos CREAR, PLANIFICAR, PUBLICAR, ANALIZAR y CRECER; barra lateral con todas las secciones; lema inferior "CREAR · AUTOMATIZAR · AMPLIFICAR".
+
+### 5.6 Rutas de la aplicación
 
 | Ruta | Pantalla |
 |---|---|
@@ -502,7 +534,7 @@ Maquetas de teléfono por red, lado a lado (una a la vez en pantallas angostas),
 
 ### 8.7 Calendario
 
-- FullCalendar (edición MIT), vistas mensual y semanal, tema oscuro con las variables de color del sistema de diseño.
+- FullCalendar (edición MIT), vistas mensual y semanal, con las variables de color del sistema de diseño.
 - Cada evento es una publicación con íconos de sus redes coloreados por estado. Las publicaciones en estado `idea` aparecen como marcadores con estilo distinto.
 - Arrastrar: en la vista mensual cambia el día y conserva la hora; en la semanal se mueve en intervalos de 15 minutos. No se permite arrastrar al pasado ni mover publicaciones ya publicadas o en curso. Mover actualiza en una transacción todos los destinos sin hora propia y los vuelve a programar.
 - Clic en un evento abre `/publicaciones/[id]`.
@@ -627,9 +659,9 @@ En `/estadisticas`, la sección Padre/Hijo lista los Principales con número de 
 
 ## 11. Seguridad
 
-- **Acceso:** Firebase Auth con Google. `antesDeCrearUsuario` rechaza cualquier correo distinto al configurado (`ALLOWED_EMAIL`). Reglas de Firestore y Storage: lectura y escritura solo para el uid permitido; `secrets` sin acceso desde el cliente. Las rutas del servidor verifican la sesión (cookie de sesión de Firebase) en cada llamada.
+- **Acceso:** Firebase Auth con Google. `antesDeCrearUsuario` rechaza cualquier correo distinto al configurado (parámetro `ALLOWED_EMAIL` de Functions) o sin verificar, y asigna el claim `owner`; `antesDeIniciarSesion` repite la verificación en cada inicio de sesión. Reglas de Firestore y Storage: lectura y escritura solo con el claim `owner`; `secrets` sin acceso desde el cliente. Las rutas del servidor verifican la sesión (cookie de sesión de Firebase) en cada llamada.
 - **Cifrado:** AES-256-GCM con llave en Secret Manager; `keyVersion` permite rotarla.
-- **Secretos de la aplicación** (credenciales de las apps de Meta, Google y TikTok, llave de cifrado, correo permitido): Secret Manager.
+- **Secretos de la aplicación** (credenciales de las apps de Meta, Google y TikTok, llave de cifrado): Secret Manager.
 - **Archivos:** privados; acceso mediante enlaces firmados de corta duración.
 - **Registros:** nunca incluyen llaves ni accesos (filtro de redacción).
 - **Requisitos de las redes:** página `/privacidad` y ruta de solicitud de borrado de datos de Meta.
@@ -660,7 +692,7 @@ Las pruebas automáticas no hacen llamadas reales a las redes ni a los proveedor
 
 | Elemento | Fase |
 |---|---|
-| Proyecto de Firebase en plan Blaze con alerta de presupuesto; dominio propio conectado a App Hosting | 1 |
+| Proyecto de Firebase en plan Blaze con alerta de presupuesto; Authentication con Identity Platform; dominio propio conectado a App Hosting | 1 |
 | App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2 |
 | App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2 |
 | App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2 |
@@ -675,7 +707,7 @@ Cada fase tendrá su propio plan de implementación. Una fase termina cuando se 
 
 | Fase | Contenido | Criterios de aceptación |
 |---|---|---|
-| 1. Fundación | Monorepo, CI, configuración de Firebase, acceso restringido, estructura de la interfaz (español, modo oscuro), Ajustes generales, subida reanudable, `procesarArchivo`, biblioteca de archivos, reglas de seguridad. | Solo el correo permitido entra. Un video de 2 GB se sube, se reanuda tras cortar la conexión y muestra sus datos técnicos y 3 fotogramas. Las reglas impiden leer `secrets` desde el cliente. |
+| 1. Fundación | Monorepo, CI, configuración de Firebase, acceso restringido, estructura de la interfaz (español, tema neoclásico), Ajustes generales, subida reanudable, `procesarArchivo`, biblioteca de archivos, reglas de seguridad. | Solo el correo permitido entra. Un video de 2 GB se sube, se reanuda tras cortar la conexión y muestra sus datos técnicos y 3 fotogramas. Las reglas impiden leer `secrets` desde el cliente. |
 | 2. Publicación | Modelo de publicaciones y destinos, editor básico (destinos, textos, hora, jerarquía), conexiones con lectura y publicación separadas, conectores de las 4 redes y `manual`, colas y funciones de publicación, modo asistido con notificaciones, referencia al Padre, calendario con arrastrar y soltar, retención, `/privacidad` y borrado de datos de Meta. | Una publicación programada a 4 redes en modo manual llega a `/pendientes` con notificación y se marca publicada con su URL. Con una red conectada por API se publica de punta a punta. Mover una publicación en el calendario no la duplica. Una Hija publicada antes que su Principal recibe su referencia al publicarse este. |
 | 3. Smart Canvas | Pasos completos de creación, advertencias, zonas seguras, recorte con `generarRecorte`, ajustes por red, vista previa final. | Un video 16:9 recortado a 9:16 para TikTok y 1:1 para Facebook genera dos archivos distintos y cada red publica el suyo. Las advertencias del canvas coinciden con las validaciones del servidor. |
 | 4. IA de texto | Ajustes de IA, validación y cifrado de llaves, perfil de contenido, copy por red en paralelo, transcripción opcional, `aiRuns` y límite mensual. | Con una llave válida se generan versiones por red que respetan los límites y se aceptan una por una. Una llave inválida se detecta al guardarla. |
