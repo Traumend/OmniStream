@@ -1,8 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  partialPrefetching: true,
   transpilePackages: ['@omnistream/core'],
   env: {
     // App Hosting inyecta FIREBASE_WEBAPP_CONFIG al compilar; en local se usa .env.development.
