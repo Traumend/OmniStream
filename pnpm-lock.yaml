@@ -78,6 +78,9 @@ importers:
       '@types/node':
         specifier: ^26.6.4
         version: 26.6.4
+      ffmpeg-static:
+        specifier: ^5.3.0
+        version: 5.3.0
       firebase:
         specifier: ^12.19.0
         version: 12.19.0
