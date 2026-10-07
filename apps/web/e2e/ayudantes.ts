@@ -1,19 +1,25 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 // Completa la ventana de inicio de sesión del emulador de Auth con una cuenta de Google simulada.
+// La ventana asigna sus eventos de clic después de cargar un script externo, así que se espera
+// a que termine de cargar y se reintenta el clic hasta que aparezca el formulario.
 export async function entrarComo(page: Page, email: string): Promise<void> {
   const [ventana] = await Promise.all([
     page.waitForEvent('popup'),
     page.getByRole('button', { name: 'Entrar con Google' }).click(),
   ]);
-  await ventana.locator('#add-account-button').waitFor();
+  await ventana.waitForLoadState('load');
   const existente = ventana.locator('li.js-reuse-account', { hasText: email }).first();
   if ((await existente.count()) > 0) {
     await existente.click();
     return;
   }
-  await ventana.locator('#add-account-button button').click();
-  await ventana.locator('#email-input').fill(email);
+  const correo = ventana.locator('#email-input');
+  await expect(async () => {
+    if (!(await correo.isVisible())) await ventana.locator('#add-account-button button').click();
+    await expect(correo).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 60_000 });
+  await correo.fill(email);
   await ventana.locator('#display-name-input').fill('Propietario');
   await ventana.locator('#sign-in').click();
 }

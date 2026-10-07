@@ -1,0 +1,34 @@
+name: Desplegar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    # Solo se ejecuta cuando el repositorio tiene configurado el proyecto de Firebase.
+    if: vars.FIREBASE_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      PROYECTO: ${{ vars.FIREBASE_PROJECT_ID }}
+      ALLOWED_EMAIL: ${{ vars.ALLOWED_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Configurar el correo permitido
+        run: echo "ALLOWED_EMAIL=${ALLOWED_EMAIL}" > "functions/.env.${PROYECTO}"
+      - name: Desplegar funciones y reglas
+        run: node scripts/firebase.cjs deploy --only functions,firestore,storage --project "${PROYECTO}" --non-interactive --force
