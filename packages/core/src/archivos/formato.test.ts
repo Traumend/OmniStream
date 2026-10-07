@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { formatearBytes, formatearDuracion } from './formato';
+import { formatearBytes, formatearDuracion, formatearFechaHora } from './formato';
 
 it('formatea bytes', () => {
   expect(formatearBytes(0)).toBe('0 B');
@@ -11,4 +11,10 @@ it('formatea duraciones', () => {
   expect(formatearDuracion(4)).toBe('0:04');
   expect(formatearDuracion(75.4)).toBe('1:15');
   expect(formatearDuracion(3725)).toBe('1:02:05');
+});
+
+it('formatearFechaHora usa la zona indicada', () => {
+  const fecha = new Date('2026-10-08T15:30:00Z');
+  expect(formatearFechaHora(fecha, 'America/Mexico_City')).toContain('9:30');
+  expect(formatearFechaHora(fecha, 'UTC')).toContain('3:30');
 });
