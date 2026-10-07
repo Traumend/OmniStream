@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Cinzel, Cormorant_Garamond, Source_Serif_4 } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ProveedorSesion } from '@/lib/firebase/sesion';
 import './globals.css';
 
 const fuenteTitulo = Cormorant_Garamond({
@@ -33,7 +34,9 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       className={`${fuenteTitulo.variable} ${fuenteOrnamental.variable} ${fuenteTexto.variable} h-full antialiased`}
     >
       <body className="fondo-marmol min-h-full">
-        <TooltipProvider>{children}</TooltipProvider>
+        <ProveedorSesion>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ProveedorSesion>
         <Toaster position="bottom-right" />
       </body>
     </html>
