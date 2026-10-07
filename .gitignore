@@ -1,0 +1,12 @@
+node_modules
+.next
+functions/dist
+coverage
+*.log
+.firebase
+functions/.env.*
+!functions/.env.demo-omnistream
+pruebas/**/.fixtures
+apps/web/test-results
+apps/web/playwright-report
+.superpowers
