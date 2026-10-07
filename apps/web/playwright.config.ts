@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   timeout: 120_000,
+  // En frío, el servidor de desarrollo compila cada ruta en la primera visita y el emulador
+  // arranca las funciones de bloqueo; 5 s (el valor por defecto) no alcanza en CI.
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   workers: 1,
   reporter: process.env.CI ? 'github' : 'list',
