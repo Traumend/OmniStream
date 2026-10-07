@@ -3,6 +3,7 @@
 import { GoogleAuthProvider, onIdTokenChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { obtenerFirebase } from './cliente';
+import { firebaseConfigurado, MENSAJE_SIN_CONFIGURACION } from './config';
 import { interpretarErrorEntrada, MENSAJE_SIN_ACCESO } from './erroresEntrada';
 
 export interface UsuarioSesion {
@@ -22,9 +23,13 @@ type ValorSesion = EstadoSesion & { entrar(): Promise<void>; salir(): Promise<vo
 const ContextoSesion = createContext<ValorSesion | null>(null);
 
 export function ProveedorSesion({ children }: { children: ReactNode }) {
-  const [sesion, setSesion] = useState<EstadoSesion>({ estado: 'cargando' });
+  // La configuración se fija al compilar, así que servidor y navegador calculan el mismo estado inicial.
+  const [sesion, setSesion] = useState<EstadoSesion>(() =>
+    firebaseConfigurado() ? { estado: 'cargando' } : { estado: 'anonimo', mensaje: MENSAJE_SIN_CONFIGURACION },
+  );
 
   useEffect(() => {
+    if (!firebaseConfigurado()) return;
     const { auth } = obtenerFirebase();
     return onIdTokenChanged(auth, async (usuario) => {
       if (!usuario) {
@@ -45,6 +50,10 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   }, []);
 
   const entrar = useCallback(async () => {
+    if (!firebaseConfigurado()) {
+      setSesion({ estado: 'anonimo', mensaje: MENSAJE_SIN_CONFIGURACION });
+      return;
+    }
     try {
       await signInWithPopup(obtenerFirebase().auth, new GoogleAuthProvider());
     } catch (error) {
@@ -54,7 +63,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   }, []);
 
   const salir = useCallback(async () => {
-    await signOut(obtenerFirebase().auth);
+    if (firebaseConfigurado()) await signOut(obtenerFirebase().auth);
   }, []);
 
   const valor = useMemo(() => ({ ...sesion, entrar, salir }), [sesion, entrar, salir]);

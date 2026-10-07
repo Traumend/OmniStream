@@ -10,7 +10,7 @@ Herramienta personal para programar y publicar contenido en Facebook, Instagram,
 
 | Carpeta | Contenido |
 |---|---|
-| `apps/web` | Aplicación Next.js (Firebase App Hosting) |
+| `apps/web` | Aplicación Next.js (publicada en Vercel) |
 | `functions` | Cloud Functions: acceso por correo y procesamiento de archivos |
 | `packages/core` | Reglas de dominio compartidas |
 | `pruebas/integracion` | Pruebas contra los emuladores de Firebase |

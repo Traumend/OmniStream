@@ -33,6 +33,7 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 | D11 | La referencia al Padre en una Hija se publica como primer comentario donde la API lo permita; en TikTok va en la descripción. |
 | D12 | Las llamadas a Anthropic incluyen por defecto el respaldo automático del servidor ante rechazos. |
 | D13 | Dirección visual: tema claro neoclásico con neumorfismo suave y acentos dorados, según la imagen de referencia del usuario (sección 5.5). Sustituye el "modo oscuro nativo" del PRD. |
+| D14 | La aplicación web se publica en Vercel (con vista previa por cada pull request). Firebase sigue como backend: Auth, Firestore, Storage y Cloud Functions. |
 
 ### 2.2 Supuestos de diseño (aceptados en la revisión por secciones)
 
@@ -72,7 +73,7 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 
 | Tema | Restricción | Cómo la maneja el diseño |
 |---|---|---|
-| Firebase | Cloud Storage, Cloud Functions y App Hosting requieren el plan Blaze (tarjeta registrada). Blaze conserva una cuota gratuita. | Alertas de presupuesto; política de retención de archivos. |
+| Firebase | Cloud Storage y Cloud Functions requieren el plan Blaze (tarjeta registrada). Blaze conserva una cuota gratuita. | Alertas de presupuesto; política de retención de archivos. |
 | Firebase Auth | Las funciones de bloqueo de Auth requieren activar Firebase Authentication con Identity Platform. | Se activa en la configuración de la fase 1. |
 | Cloud Tasks | Solo programa tareas hasta 30 días en el futuro. | La función diaria `encolarPendientes` encola lo que entra en esa ventana. |
 | YouTube | Mientras el proyecto no pase la auditoría, los videos subidos por API quedan bloqueados como privados. Con la app de Google en estado "Prueba", el acceso caduca cada 7 días. | YouTube publica en modo manual hasta la auditoría; la app de Google se pasa a "En producción" (aunque no esté verificada). La lectura de métricas no depende de la auditoría. |
@@ -90,14 +91,14 @@ Monorepo con pnpm:
 
 | Ruta | Contenido |
 |---|---|
-| `apps/web` | Next.js (App Router) con TypeScript estricto, Tailwind CSS, shadcn/ui sobre Radix, Framer Motion, Recharts y FullCalendar (edición MIT). Tema claro neoclásico (sección 5.5). Se despliega en Firebase App Hosting. |
+| `apps/web` | Next.js (App Router) con TypeScript estricto, Tailwind CSS, shadcn/ui sobre Radix, Framer Motion, Recharts y FullCalendar (edición MIT). Tema claro neoclásico (sección 5.5). Se despliega en Vercel. |
 | `functions/` | Cloud Functions de 2.ª generación en TypeScript. Se empaquetan con esbuild en un solo archivo antes de desplegarse, para resolver los paquetes internos del monorepo. |
 | `packages/core` | Dominio puro, sin dependencias de red: tipos, esquemas Zod, reglas por red, combinación de ajustes por red, máquinas de estados, cálculo de recortes, normalización de métricas y cálculo del impulso estimado. |
 | `packages/platforms` | Un conector por red con la misma interfaz: `facebook`, `instagram`, `youtube`, `tiktok` y `manual`. |
 | `packages/ai` | Abstracción de proveedores (Anthropic y OpenAI), prompts versionados y esquemas de salida de cada tarea. |
 | `docs/` | Especificaciones, planes y guía de configuración. |
 
-Versiones: Node.js LTS soportado tanto por Cloud Functions como por App Hosting (22 o superior); Next.js en su versión estable vigente al iniciar la fase 1.
+Versiones: Node.js LTS soportado tanto por Cloud Functions como por Vercel (22 o superior); Next.js en su versión estable vigente al iniciar la fase 1.
 
 ### 5.2 Interfaz común de los conectores (`packages/platforms`)
 
@@ -124,7 +125,7 @@ interface PlatformAdapter {
 ### 5.3 Componentes en ejecución
 
 ```
-Navegador ──> Next.js en App Hosting
+Navegador ──> Next.js en Vercel
                ├─ Interfaz
                ├─ Rutas de servidor: conexión con redes, acciones de publicación, IA interactiva
                │
@@ -686,13 +687,13 @@ Las pruebas automáticas no hacen llamadas reales a las redes ni a los proveedor
 
 - **Ambientes:** un proyecto de Firebase (producción) y emuladores locales.
 - **CI (GitHub Actions):** formato, lint, tipos, pruebas unitarias, pruebas con emuladores y compilación en cada push.
-- **Despliegue:** App Hosting despliega la web al actualizar `main`. Las funciones, reglas e índices se despliegan desde GitHub Actions con una cuenta de servicio.
+- **Despliegue:** Vercel publica la web al actualizar `main` y crea una vista previa por cada pull request. Las funciones, reglas e índices se despliegan desde GitHub Actions con una cuenta de servicio.
 - **Monitoreo:** registros estructurados en Cloud Logging, Error Reporting, notificaciones push de fallos y alertas de presupuesto en la facturación.
 - **Guía de configuración** (`docs/configuracion.md`), con lo que el usuario debe crear y en qué fase:
 
 | Elemento | Fase |
 |---|---|
-| Proyecto de Firebase en plan Blaze con alerta de presupuesto; Authentication con Identity Platform; dominio propio conectado a App Hosting | 1 |
+| Proyecto de Firebase en plan Blaze con alerta de presupuesto; Authentication con Identity Platform; proyecto de Vercel conectado al repositorio | 1 |
 | App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2 |
 | App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2 |
 | App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2 |

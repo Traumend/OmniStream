@@ -47,14 +47,18 @@ Sigue los pasos en orden. Los nombres de los menús son los de la consola de Fir
 2. **Firestore y Storage.** Crea la base de datos de Firestore en modo nativo y el bucket de Storage, ambos en `us-central1` (las cuotas gratuitas aplican en regiones de Estados Unidos).
 3. **Authentication.** En Authentication > Configuración, actualiza a "Firebase Authentication with Identity Platform" (lo requieren las funciones de bloqueo). Habilita el proveedor Google.
 4. **Permiso para firmar URLs.** En Google Cloud > IAM, da el rol "Creador de tokens de cuenta de servicio" a la cuenta de servicio de las funciones (`NUMERO_DE_PROYECTO-compute@developer.gserviceaccount.com`). Las funciones lo usan para leer los videos con enlaces firmados.
-5. **App Hosting.** En App Hosting, crea un backend conectado a este repositorio, con la rama `main` y el directorio raíz `apps/web`. Después conecta tu dominio propio en la configuración del backend.
+5. **Vercel.** En Vercel, elige "Add New… > Project" e importa este repositorio de GitHub:
+   - Root Directory: `apps/web` (Vercel detecta Next.js y el monorepo de pnpm).
+   - Variable de entorno `NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG`: el objeto de configuración de tu app web de Firebase en una sola línea, por ejemplo `{"apiKey":"…","authDomain":"…","projectId":"…","storageBucket":"…","appId":"…"}`. Lo encuentras en Firebase > Configuración del proyecto > Tus apps > App web.
+   - En Firebase > Authentication > Configuración > Dominios autorizados, agrega el dominio de Vercel (`tu-proyecto.vercel.app`) y tu dominio propio si lo conectas.
+   - Vercel publica `main` y crea una vista previa por cada pull request. Sin la variable de Firebase, la app muestra un aviso en lugar de permitir la entrada.
 6. **GitHub Actions.** Crea en Google Cloud una cuenta de servicio para despliegues con los roles "Administrador de Firebase" y "Usuario de cuenta de servicio", y genera una clave JSON. En el repositorio de GitHub (Settings > Secrets and variables > Actions):
    - Secreto `FIREBASE_SERVICE_ACCOUNT`: el contenido de la clave JSON.
    - Variable `FIREBASE_PROJECT_ID`: el id del proyecto.
    - Variable `ALLOWED_EMAIL`: tu correo de Google.
 
    Si un despliegue falla por permisos, el mensaje de error indica el rol que falta.
-7. **Primer despliegue.** Al actualizar `main`, App Hosting publica la web y el flujo "Desplegar" publica funciones y reglas. Las reglas de Storage consultan Firestore; si la consola de Firebase pide autorizar que Storage lea Firestore, acéptalo. Verifica en Authentication > Configuración > Funciones de bloqueo que aparezcan `antesDeCrearUsuario` y `antesDeIniciarSesion`.
+7. **Primer despliegue.** Al actualizar `main`, Vercel publica la web y el flujo "Desplegar" publica funciones y reglas. Las reglas de Storage consultan Firestore; si la consola de Firebase pide autorizar que Storage lea Firestore, acéptalo. Verifica en Authentication > Configuración > Funciones de bloqueo que aparezcan `antesDeCrearUsuario` y `antesDeIniciarSesion`.
 8. **Verificación.**
    - Entra con tu correo y confirma que otro correo es rechazado.
    - Sube un video y confirma que muestra sus datos técnicos y 3 fotogramas.

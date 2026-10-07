@@ -1,5 +1,0 @@
-# Configuración de Firebase App Hosting. App Hosting inyecta FIREBASE_WEBAPP_CONFIG al compilar,
-# y next.config.ts lo expone al cliente.
-runConfig:
-  minInstances: 0
-  maxInstances: 2
