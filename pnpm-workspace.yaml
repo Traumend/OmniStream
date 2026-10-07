@@ -10,3 +10,6 @@ onlyBuiltDependencies:
   - ffmpeg-static
   - protobufjs
   - sharp
+
+ignoredBuiltDependencies:
+  - unrs-resolver
