@@ -2,12 +2,21 @@ import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import ffmpegPath from 'ffmpeg-static';
 
 const ejecutar = promisify(execFile);
-const directorio = resolve(import.meta.dirname, '../.fixtures');
+// Se busca la raíz del monorepo desde el directorio actual para funcionar tanto en Vitest (ESM) como en Playwright (CJS).
+function raizDelRepositorio(): string {
+  let actual = process.cwd();
+  while (!existsSync(join(actual, 'pnpm-workspace.yaml'))) {
+    const padre = dirname(actual);
+    if (padre === actual) throw new Error('No se encontró la raíz del monorepo');
+    actual = padre;
+  }
+  return actual;
+}
 
 export interface Fixtures {
   video: string;
@@ -16,6 +25,7 @@ export interface Fixtures {
 }
 
 export async function prepararFixtures(): Promise<Fixtures> {
+  const directorio = join(raizDelRepositorio(), 'pruebas/integracion/.fixtures');
   await mkdir(directorio, { recursive: true });
   const fixtures: Fixtures = {
     video: join(directorio, 'video-vertical.mp4'),

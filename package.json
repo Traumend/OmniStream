@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "format": "prettier --write .",
-    "test:integracion": "pnpm --filter @omnistream/functions build && node scripts/firebase.cjs emulators:exec --only auth,firestore,storage,functions --project demo-omnistream \"pnpm --filter @omnistream/pruebas-integracion test\""
+    "test:integracion": "pnpm --filter @omnistream/functions build && node scripts/firebase.cjs emulators:exec --only auth,firestore,storage,functions --project demo-omnistream \"pnpm --filter @omnistream/pruebas-integracion test\"",
+    "test:e2e": "pnpm --filter @omnistream/functions build && node scripts/firebase.cjs emulators:exec --only auth,firestore,storage,functions --project demo-omnistream \"pnpm --filter @omnistream/web exec playwright test\""
   },
   "devDependencies": {
     "eslint": "^10.12.0",
