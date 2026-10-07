@@ -44,6 +44,8 @@ export interface GestorSubidas {
 }
 
 const MENSAJE_FALLO = 'La subida falló. Revisa tu conexión e inténtalo de nuevo.';
+const MENSAJE_INICIO = 'No se pudo iniciar la subida. Revisa tu conexión e inténtalo de nuevo.';
+const ESTADOS_ACTIVOS: ReadonlySet<EstadoSubida> = new Set(['subiendo', 'pausada', 'completada']);
 
 export function crearGestorSubidas(deps: DependenciasSubida): GestorSubidas {
   let estado: ReadonlyMap<string, ProgresoSubida> = new Map();
@@ -52,20 +54,25 @@ export function crearGestorSubidas(deps: DependenciasSubida): GestorSubidas {
   const suscriptores = new Set<() => void>();
 
   // Se reemplazan las colecciones en cada cambio para que useSyncExternalStore detecte la diferencia.
-  const actualizar = (id: string, cambios: Partial<ProgresoSubida>) => {
-    const actual = estado.get(id);
-    if (!actual) return;
-    const siguiente = new Map(estado);
-    siguiente.set(id, { ...actual, ...cambios });
+  // Una subida completada sigue activa hasta que el servidor cambie el estado del documento.
+  const publicar = (siguiente: Map<string, ProgresoSubida>) => {
     estado = siguiente;
-    activas = new Set([...siguiente.values()].filter((p) => p.estado === 'subiendo' || p.estado === 'pausada').map((p) => p.assetId));
+    activas = new Set([...siguiente.values()].filter((p) => ESTADOS_ACTIVOS.has(p.estado)).map((p) => p.assetId));
     suscriptores.forEach((cb) => cb());
   };
 
-  const registrar = (progreso: ProgresoSubida) => {
-    estado = new Map(estado).set(progreso.assetId, progreso);
-    activas = new Set(activas).add(progreso.assetId);
-    suscriptores.forEach((cb) => cb());
+  const actualizar = (id: string, cambios: Partial<ProgresoSubida>) => {
+    const actual = estado.get(id);
+    if (!actual) return;
+    publicar(new Map(estado).set(id, { ...actual, ...cambios }));
+  };
+
+  const registrar = (progreso: ProgresoSubida) => publicar(new Map(estado).set(progreso.assetId, progreso));
+
+  const quitar = (id: string) => {
+    const siguiente = new Map(estado);
+    siguiente.delete(id);
+    publicar(siguiente);
   };
 
   return {
@@ -76,19 +83,25 @@ export function crearGestorSubidas(deps: DependenciasSubida): GestorSubidas {
       const id = deps.generarId();
       const metadatos = await deps.leerMetadatosLocales(archivo, validacion.tipo).catch((): MetadatosLocales => ({}));
       const definidos = Object.fromEntries(Object.entries(metadatos).filter(([, v]) => v !== undefined));
-      await deps.crearDocumento({
-        id,
-        kind: validacion.tipo,
-        source: 'subida',
-        originalName: archivo.name,
-        storagePath: rutaOriginal(id),
-        mimeType: validacion.mime,
-        sizeBytes: archivo.size,
-        status: 'subiendo',
-        ...definidos,
-      });
-
+      // Se registra antes de crear el documento para que la tarjeta nunca aparezca como interrumpida.
       registrar({ assetId: id, nombre: archivo.name, bytesTransferidos: 0, bytesTotales: archivo.size, estado: 'subiendo' });
+      try {
+        await deps.crearDocumento({
+          id,
+          kind: validacion.tipo,
+          source: 'subida',
+          originalName: archivo.name,
+          storagePath: rutaOriginal(id),
+          mimeType: validacion.mime,
+          sizeBytes: archivo.size,
+          status: 'subiendo',
+          ...definidos,
+        });
+      } catch {
+        quitar(id);
+        return { ok: false, mensaje: MENSAJE_INICIO };
+      }
+
       const tarea = deps.subir(rutaOriginal(id), archivo, validacion.mime);
       tareas.set(id, tarea);
       tarea.alProgresar((transferidos, total) => actualizar(id, { bytesTransferidos: transferidos, bytesTotales: total }));

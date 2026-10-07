@@ -1,7 +1,10 @@
 name: Desplegar
 
+# Despliega solo después de que CI termine con éxito en main (o a mano).
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -11,14 +14,18 @@ concurrency:
 
 jobs:
   desplegar:
-    # Solo se ejecuta cuando el repositorio tiene configurado el proyecto de Firebase.
-    if: vars.FIREBASE_PROJECT_ID != ''
+    # Requiere el proyecto de Firebase configurado y, si viene de CI, que haya terminado bien.
+    if: >-
+      vars.FIREBASE_PROJECT_ID != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
       PROYECTO: ${{ vars.FIREBASE_PROJECT_ID }}
       ALLOWED_EMAIL: ${{ vars.ALLOWED_EMAIL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

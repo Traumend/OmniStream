@@ -7,6 +7,9 @@ import type { convertirHeicAJpeg, extraerFotograma, probar, procesarImagen } fro
 export const MENSAJE_ERROR_LECTURA = 'No se pudo leer el archivo. Puede estar dañado o en un formato no soportado.';
 
 const PREFIJO = 'originales/';
+
+// Quita los parámetros de consulta de las URL (firmas de acceso temporal) antes de escribir en los logs.
+const redactarUrls = (texto: string) => texto.replace(/(https?:\/\/[^\s?'"]+)\?[^\s'"]*/g, '$1?[redactado]');
 const FOTOGRAMAS: Fotograma[] = ['start', 'middle', 'end'];
 
 export interface DependenciasProcesamiento {
@@ -69,7 +72,7 @@ export async function procesarObjeto(
     }
     await deps.actualizarAsset(assetId, { ...analisis, frames, status: 'listo' });
   } catch (error) {
-    logger.error('No se pudo procesar el archivo', { assetId, error: String(error) });
+    logger.error('No se pudo procesar el archivo', { assetId, error: redactarUrls(String(error)) });
     await deps.actualizarAsset(assetId, { status: 'fallido', error: MENSAJE_ERROR_LECTURA });
   } finally {
     await temporal?.limpiar();

@@ -44,6 +44,8 @@ function crearDependencias(nombreBucket: string): DependenciasProcesamiento {
   };
 }
 
-export const procesarArchivo = onObjectFinalized({ region: REGION, memory: '2GiB', timeoutSeconds: 540 }, (event) =>
-  procesarObjeto(event.data, crearDependencias(event.data.bucket)),
+// Un archivo a la vez por instancia: ffmpeg usa mucha memoria y varios procesos simultáneos agotarían los 2 GiB.
+export const procesarArchivo = onObjectFinalized(
+  { region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1 },
+  (event) => procesarObjeto(event.data, crearDependencias(event.data.bucket)),
 );

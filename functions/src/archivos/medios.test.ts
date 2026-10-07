@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -47,3 +49,37 @@ it('procesarImagen aplica la orientación EXIF', async () => {
   expect(r).toMatchObject({ width: 800, height: 1200, rotation: 90 });
   expect((await sharp(r.miniatura).metadata()).format).toBe('jpeg');
 });
+
+async function servidorMudo(): Promise<{ servidor: Server; url: string }> {
+  const servidor = createServer(() => {});
+  await new Promise<void>((resolver) => servidor.listen(0, '127.0.0.1', resolver));
+  const { port } = servidor.address() as AddressInfo;
+  return { servidor, url: `http://127.0.0.1:${port}/video.mp4` };
+}
+
+function cerrar(servidor: Server) {
+  servidor.closeAllConnections();
+  servidor.close();
+}
+
+it('probar falla si el origen no responde dentro del tiempo máximo', async () => {
+  const { servidor, url } = await servidorMudo();
+  const inicio = Date.now();
+  try {
+    await expect(probar(url, undefined, 1_000)).rejects.toThrow();
+    expect(Date.now() - inicio).toBeLessThan(8_000);
+  } finally {
+    cerrar(servidor);
+  }
+}, 15_000);
+
+it('extraerFotograma falla si el origen no responde dentro del tiempo máximo', async () => {
+  const { servidor, url } = await servidorMudo();
+  const inicio = Date.now();
+  try {
+    await expect(extraerFotograma(url, 1, join(directorio, 'nunca.jpg'), undefined, 1_000)).rejects.toThrow();
+    expect(Date.now() - inicio).toBeLessThan(8_000);
+  } finally {
+    cerrar(servidor);
+  }
+}, 15_000);

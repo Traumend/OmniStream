@@ -40,3 +40,37 @@ it('se identifica por el nombre del archivo', () => {
   render(<TarjetaArchivo asset={videoListo} estado="listo" {...acciones()} />);
   expect(screen.getByRole('article', { name: 'video-vertical.mp4' })).toBeInTheDocument();
 });
+
+it('permite eliminar un archivo que quedó en procesamiento', () => {
+  render(<TarjetaArchivo asset={{ ...videoListo, status: 'procesando' }} estado="procesando" {...acciones()} />);
+  expect(screen.getByText('Procesando')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
+});
+
+it('una subida completada se muestra como Procesando mientras el servidor la toma', () => {
+  render(
+    <TarjetaArchivo
+      asset={subiendo}
+      estado="subiendo"
+      progreso={{ ...progreso, bytesTransferidos: 1000, estado: 'completada' }}
+      {...acciones()}
+    />,
+  );
+  expect(screen.getByText('Procesando')).toBeInTheDocument();
+  expect(screen.queryByText('Subida interrumpida')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Eliminar' })).toBeNull();
+});
+
+it('muestra el error de una subida fallida', () => {
+  render(
+    <TarjetaArchivo
+      asset={subiendo}
+      estado="interrumpido"
+      progreso={{ ...progreso, estado: 'error', error: 'La subida falló. Revisa tu conexión e inténtalo de nuevo.' }}
+      {...acciones()}
+    />,
+  );
+  expect(screen.getByText('Error en la subida')).toBeInTheDocument();
+  expect(screen.getByText('La subida falló. Revisa tu conexión e inténtalo de nuevo.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
+});

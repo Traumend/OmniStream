@@ -17,10 +17,14 @@ const TONO_ESTADO: Record<EstadoVisible, string> = {
 };
 
 function etiquetaEstado(estado: EstadoVisible, progreso?: ProgresoSubida): string {
+  if (progreso?.estado === 'error') return 'Error en la subida';
   if (estado !== 'subiendo' || !progreso) return ETIQUETAS_ESTADO[estado];
+  if (progreso.estado === 'completada') return ETIQUETAS_ESTADO.procesando;
   const porcentaje = progreso.bytesTotales > 0 ? Math.floor((progreso.bytesTransferidos * 100) / progreso.bytesTotales) : 0;
   return `${progreso.estado === 'pausada' ? 'En pausa' : 'Subiendo'} ${porcentaje}%`;
 }
+
+const ELIMINABLES: ReadonlySet<EstadoVisible> = new Set(['interrumpido', 'listo', 'fallido', 'procesando']);
 
 export function TarjetaArchivo({
   asset,
@@ -44,7 +48,9 @@ export function TarjetaArchivo({
   alEliminar(): void;
 }) {
   const Icono = asset.kind === 'image' ? ImageIcon : Film;
-  const subiendo = estado === 'subiendo' && progreso;
+  const subiendo =
+    estado === 'subiendo' && progreso && (progreso.estado === 'subiendo' || progreso.estado === 'pausada') ? progreso : null;
+  const errorSubida = progreso?.estado === 'error' ? progreso.error : undefined;
   const detalles = [
     formatearBytes(asset.sizeBytes),
     asset.durationSec ? formatearDuracion(asset.durationSec) : null,
@@ -68,7 +74,7 @@ export function TarjetaArchivo({
         <span
           className={cn(
             'etiqueta-ornamental absolute top-3 left-3 rounded-full border bg-superficie-elevada/95 px-2.5 py-1 text-[0.6rem]',
-            TONO_ESTADO[estado],
+            errorSubida ? TONO_ESTADO.fallido : TONO_ESTADO[estado],
           )}
         >
           {etiquetaEstado(estado, progreso)}
@@ -90,16 +96,17 @@ export function TarjetaArchivo({
         </ul>
 
         {subiendo && (
-          <Progress value={(progreso.bytesTransferidos * 100) / Math.max(progreso.bytesTotales, 1)} className="mt-1 h-1.5" />
+          <Progress value={(subiendo.bytesTransferidos * 100) / Math.max(subiendo.bytesTotales, 1)} className="mt-1 h-1.5" />
         )}
+        {errorSubida && <p className="text-sm text-peligro">{errorSubida}</p>}
 
         <div className="mt-auto flex gap-2 pt-2">
-          {subiendo && progreso.estado !== 'pausada' && alPausar && (
+          {subiendo && subiendo.estado !== 'pausada' && alPausar && (
             <Button variant="outline" size="sm" onClick={alPausar}>
               <Pause /> Pausar
             </Button>
           )}
-          {subiendo && progreso.estado === 'pausada' && alReanudar && (
+          {subiendo && subiendo.estado === 'pausada' && alReanudar && (
             <Button variant="outline" size="sm" onClick={alReanudar}>
               <Play /> Reanudar
             </Button>
@@ -109,7 +116,7 @@ export function TarjetaArchivo({
               <X /> Cancelar
             </Button>
           )}
-          {(estado === 'interrumpido' || estado === 'listo' || estado === 'fallido') && (
+          {ELIMINABLES.has(estado) && (
             <Button variant="ghost" size="sm" className="text-peligro" onClick={alEliminar}>
               <Trash2 /> Eliminar
             </Button>

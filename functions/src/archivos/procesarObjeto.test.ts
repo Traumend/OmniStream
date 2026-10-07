@@ -1,3 +1,4 @@
+import { logger } from 'firebase-functions';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { FfprobeSalida } from './analizar';
 import { MENSAJE_ERROR_LECTURA, procesarObjeto, type DependenciasProcesamiento } from './procesarObjeto';
@@ -97,4 +98,18 @@ it('siempre limpia el directorio temporal', async () => {
   deps.probar.mockRejectedValue(new Error('x'));
   await procesarObjeto({ name: 'originales/a1', contentType: 'video/mp4' }, deps);
   expect(limpiar).toHaveBeenCalled();
+});
+
+it('no registra URLs firmadas en los logs', async () => {
+  const registro = vi.spyOn(logger, 'error').mockImplementation(() => {});
+  deps.probar.mockRejectedValue(
+    new Error(
+      'Command failed: ffprobe https://storage.googleapis.com/b/originales/a1?X-Goog-Algorithm=GOOG4&X-Goog-Signature=abc123: Invalid data',
+    ),
+  );
+  await procesarObjeto({ name: 'originales/a1', contentType: 'video/mp4' }, deps);
+  const registrado = JSON.stringify(registro.mock.calls);
+  expect(registrado).not.toContain('X-Goog-Signature');
+  expect(registrado).toContain('https://storage.googleapis.com/b/originales/a1');
+  registro.mockRestore();
 });

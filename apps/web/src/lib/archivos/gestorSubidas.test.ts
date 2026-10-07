@@ -89,11 +89,30 @@ it('reporta el progreso y mantiene la subida activa', async () => {
   expect(gestor.activas().has('a1')).toBe(true);
 });
 
-it('al completar deja de estar activa', async () => {
+it('al completar sigue activa hasta que el servidor procese el archivo', async () => {
   await gestor.iniciar(archivo('clip.mp4', 'video/mp4', 100), 10);
   await tarea.completar();
   expect(gestor.obtenerEstado().get('a1')?.estado).toBe('completada');
-  expect(gestor.activas().size).toBe(0);
+  expect(gestor.activas().has('a1')).toBe(true);
+});
+
+it('la subida está activa antes de que se confirme el documento', async () => {
+  let confirmar!: () => void;
+  deps.crearDocumento.mockReturnValue(new Promise<void>((resolver) => (confirmar = resolver)));
+  const inicio = gestor.iniciar(archivo('clip.mp4', 'video/mp4', 100), 10);
+  await new Promise((r) => setTimeout(r, 0));
+  expect(gestor.activas().has('a1')).toBe(true);
+  confirmar();
+  await inicio;
+});
+
+it('si no se puede crear el documento, informa el error y no deja la subida activa', async () => {
+  deps.crearDocumento.mockRejectedValue(new Error('permission-denied'));
+  const r = await gestor.iniciar(archivo('clip.mp4', 'video/mp4', 100), 10);
+  expect(r).toEqual({ ok: false, mensaje: 'No se pudo iniciar la subida. Revisa tu conexión e inténtalo de nuevo.' });
+  expect(gestor.activas().has('a1')).toBe(false);
+  expect(gestor.obtenerEstado().has('a1')).toBe(false);
+  expect(deps.subir).not.toHaveBeenCalled();
 });
 
 it('pausa y reanuda', async () => {
