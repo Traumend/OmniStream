@@ -7,13 +7,11 @@ import {
   ETIQUETAS_RED,
   FORMATOS_POR_RED,
   formatearDuracion,
-  MENSAJES_JERARQUIA,
   PLATAFORMAS,
   REGLAS,
   sugerirDestinos,
   textoReferencia,
   urlVideoYoutube,
-  validarPublicacion,
   type Asset,
   type Destino,
   type EntradaPublicacion,
@@ -25,21 +23,16 @@ import {
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { aEntrada, aFormulario, FORMULARIO_VACIO, type FormularioPublicacion } from '@/lib/publicaciones/formulario';
+import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
+import { ConfirmarEnvio } from './ConfirmarEnvio';
+import { ListaErrores } from './ListaErrores';
 
-export type Intencion = 'guardar' | 'programar' | 'publicar_ahora';
+export type { Intencion };
 
 export interface PropsEditor {
   zona: string;
@@ -52,7 +45,6 @@ export interface PropsEditor {
   alEnviar(entrada: EntradaPublicacion, intencion: Intencion): Promise<void>;
 }
 
-const MENSAJES_DE_JERARQUIA = new Set<string>(Object.values(MENSAJES_JERARQUIA));
 // Peor caso del largo de la referencia en TikTok: los ids de YouTube tienen 11 caracteres.
 const URL_DE_MUESTRA = urlVideoYoutube('XXXXXXXXXXX');
 const CAMPO = 'h-11 rounded-[12px] bg-superficie-elevada text-base';
@@ -173,37 +165,26 @@ export function EditorPublicacion({
     return [{ red: destino.platform, largo, limite }];
   });
 
-  function validar(intencion: Intencion): { errores: string[]; advertencias: string[] } {
-    const hora =
-      intencion === 'publicar_ahora'
-        ? 'inmediata'
-        : intencion === 'programar' || esProgramada
-          ? 'programada'
-          : 'sin_comprobar';
-    const problemas = validarPublicacion({
-      publicacion: {
-        title: entrada.title,
-        assetId: entrada.assetId ?? undefined,
-        base: entrada.base,
-        scheduledAt: entrada.scheduledAt ? new Date(entrada.scheduledAt) : null,
-        parentId: entrada.parentId ?? undefined,
+  function validar(intencion: Intencion) {
+    return revisarEnvio(
+      {
+        publicacion: {
+          title: entrada.title,
+          assetId: entrada.assetId ?? undefined,
+          base: entrada.base,
+          scheduledAt: entrada.scheduledAt ? new Date(entrada.scheduledAt) : null,
+          parentId: entrada.parentId ?? undefined,
+        },
+        destinos: entrada.destinos.map((d) => ({ ...d, overrides: {} })),
+        asset,
+        principal,
+        tipoActual: inicial?.publicacion.kind,
+        numeroDeHijas: inicial?.hijas ?? 0,
+        ahora: ahora(),
       },
-      destinos: entrada.destinos.map((d) => ({ ...d, overrides: {} })),
-      asset,
-      principal,
-      tipoActual: inicial?.publicacion.kind,
-      numeroDeHijas: inicial?.hijas ?? 0,
-      ahora: ahora(),
-      hora,
-    });
-    let encontrados = problemas.filter((p) => p.nivel === 'error').map((p) => p.mensaje);
-    // Un borrador puede guardarse incompleto; solo la jerarquía debe ser válida.
-    if (intencion === 'guardar' && !esProgramada) encontrados = encontrados.filter((m) => MENSAJES_DE_JERARQUIA.has(m));
-    if (!entrada.title.trim()) encontrados.unshift('Escribe un título');
-    return {
-      errores: encontrados,
-      advertencias: problemas.filter((p) => p.nivel === 'advertencia').map((p) => p.mensaje),
-    };
+      intencion,
+      esProgramada,
+    );
   }
 
   async function ejecutar(intencion: Intencion) {
@@ -471,19 +452,7 @@ export function EditorPublicacion({
         <p className="text-sm text-texto-secundario">Zona horaria: {zona}</p>
       </Seccion>
 
-      {errores.length > 0 && (
-        <div
-          role="alert"
-          aria-label="Errores"
-          className="rounded-[12px] border border-peligro/40 bg-peligro/5 px-4 py-3 text-sm text-peligro"
-        >
-          <ul className="list-disc space-y-1 pl-5">
-            {errores.map((mensaje) => (
-              <li key={mensaje}>{mensaje}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ListaErrores errores={errores} />
 
       <div className="flex flex-wrap justify-end gap-3">
         <Button type="button" variant="outline" disabled={enviando} onClick={() => enviar('guardar')}>
@@ -499,45 +468,15 @@ export function EditorPublicacion({
         </Button>
       </div>
 
-      <Dialog open={confirmacion !== null} onOpenChange={(abrir) => !abrir && setConfirmacion(null)}>
-        <DialogContent className="bg-superficie">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-2xl">
-              {confirmacion?.intencion === 'publicar_ahora' ? 'Confirmar publicación' : 'Confirmar programación'}
-            </DialogTitle>
-            <DialogDescription>
-              {`${entrada.destinos.length} ${entrada.destinos.length === 1 ? 'red' : 'redes'}: ${entrada.destinos
-                .map((d) => ETIQUETAS_RED[d.platform])
-                .join(', ')}.`}
-            </DialogDescription>
-          </DialogHeader>
-          {confirmacion && confirmacion.advertencias.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="font-heading text-lg text-alerta">Advertencias</h3>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-texto-secundario">
-                {confirmacion.advertencias.map((mensaje) => (
-                  <li key={mensaje}>{mensaje}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-sm text-texto-secundario">Sin advertencias.</p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmacion(null)}>
-              Volver
-            </Button>
-            <Button
-              type="button"
-              className="boton-oro"
-              disabled={enviando}
-              onClick={() => confirmacion && void ejecutar(confirmacion.intencion)}
-            >
-              Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmarEnvio
+        abierto={confirmacion !== null}
+        inmediata={confirmacion?.intencion === 'publicar_ahora'}
+        redes={entrada.destinos.map((d) => d.platform)}
+        advertencias={confirmacion?.advertencias ?? []}
+        enviando={enviando}
+        alCerrar={() => setConfirmacion(null)}
+        alConfirmar={() => confirmacion && void ejecutar(confirmacion.intencion)}
+      />
     </form>
   );
 }

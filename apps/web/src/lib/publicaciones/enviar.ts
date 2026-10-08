@@ -3,7 +3,7 @@
 import type { EntradaPublicacion } from '@omnistream/core';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Intencion } from '@/components/publicaciones/EditorPublicacion';
+import type { Intencion } from './revisarEnvio';
 import { ejecutarAccion, mensajeDeError } from './acciones';
 
 // Guarda y, según la intención, programa o publica ahora; los errores se muestran como aviso y no se relanzan.
