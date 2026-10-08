@@ -3,7 +3,6 @@ import {
   leerDestino,
   leerPublicacion,
   modoDePublicacion,
-  PLATAFORMAS,
   type Asset,
   type Destino,
   type ModoPublicacion,
@@ -76,12 +75,17 @@ export async function leerContexto(
   };
 }
 
-export async function leerModos(db: Firestore, redes: readonly Platform[]): Promise<Record<Platform, ModoPublicacion>> {
-  const modos = Object.fromEntries(PLATAFORMAS.map((p) => [p, 'manual'])) as Record<Platform, ModoPublicacion>;
-  if (redes.length === 0) return modos;
-  const conexiones = await db.getAll(...redes.map((red) => db.collection('connections').doc(red)));
-  for (const conexion of conexiones) {
-    modos[conexion.id as Platform] = modoDePublicacion(leerConexion(conexion.id as Platform, conexion.data()));
-  }
-  return modos;
+// Modo efectivo de cada destino según su conexión y su formato (TikTok imagen exige el dominio verificado).
+export async function leerModos(
+  db: Firestore,
+  destinos: readonly Pick<Destino, 'platform' | 'format'>[],
+): Promise<Partial<Record<Platform, ModoPublicacion>>> {
+  if (destinos.length === 0) return {};
+  const conexiones = await db.getAll(...destinos.map((d) => db.collection('connections').doc(d.platform)));
+  return Object.fromEntries(
+    destinos.map((destino, i) => [
+      destino.platform,
+      modoDePublicacion(leerConexion(destino.platform, conexiones[i]?.data()), destino.format),
+    ]),
+  );
 }

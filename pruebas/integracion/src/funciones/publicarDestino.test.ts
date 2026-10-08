@@ -1,4 +1,4 @@
-import { idTarea, type Platform } from '@omnistream/core';
+import { CAMPOS_TIKTOK_POR_DEFECTO, idTarea, type Platform } from '@omnistream/core';
 import { encolarDestino, encoladorCloudTasks } from '@omnistream/functions/src/publicacion/cola';
 import { deleteApp, getApps, initializeApp } from 'firebase-admin/app';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -103,7 +103,7 @@ it('un archivo inexistente deja el destino fallida con error definitivo', async 
   });
 });
 
-it('el modo api sin conector deja el destino fallida', async () => {
+it('el modo api sin conexión deja el destino fallida por autenticación', async () => {
   const postId = await sembrarPublicacion(db, {
     publicacion: { assetId },
     destinos: [
@@ -114,6 +114,7 @@ it('el modo api sin conector deja el destino fallida', async () => {
         scheduleVersion: 1,
         scheduledAt: new Date(),
         publishMode: 'api',
+        tiktok: { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy: 'SELF_ONLY' },
       },
     ],
   });
@@ -128,8 +129,5 @@ it('el modo api sin conector deja el destino fallida', async () => {
     () => leer(postId, 'tiktok'),
     (d) => d.status === 'fallida',
   );
-  expect(destino.lastError).toMatchObject({
-    code: 'sin_conector',
-    message: 'La publicación por API de TikTok aún no está disponible.',
-  });
+  expect(destino.lastError).toMatchObject({ code: 'sin_conexion', kind: 'auth', message: 'TikTok no está conectada.' });
 });

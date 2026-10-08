@@ -1,5 +1,6 @@
 import {
   CAMPOS_YOUTUBE_POR_DEFECTO,
+  PERMISO_PUBLICAR,
   destinoNuevo,
   leerDestino,
   type Asset,
@@ -7,8 +8,12 @@ import {
   type EntradaPublicacion,
   type FormatoDestino,
   type Platform,
+  type Proveedor,
   type Publicacion,
 } from '@omnistream/core';
+import { crearCifrador } from '@omnistream/functions/src/conexiones/cifrado';
+import { guardarSesion } from '@omnistream/functions/src/conexiones/secretos';
+import type { SesionProveedor } from '@omnistream/platforms';
 import type { Firestore } from 'firebase-admin/firestore';
 
 export async function crearAssetListo(db: Firestore, cambios: Partial<Asset> = {}): Promise<string> {
@@ -80,4 +85,31 @@ export function entradaDePrueba(assetId: string, redes: [Platform, FormatoDestin
       platform === 'youtube' ? { platform, format, youtube: CAMPOS_YOUTUBE_POR_DEFECTO } : { platform, format },
     ),
   };
+}
+
+// Conexión por API con el permiso de publicar; los cambios la ajustan.
+export async function sembrarConexion(
+  db: Firestore,
+  red: Platform,
+  cambios: Record<string, unknown> = {},
+): Promise<void> {
+  await db.doc(`connections/${red}`).set({
+    platform: red,
+    authStatus: 'conectada',
+    publishMode: 'api',
+    readEnabled: true,
+    scopes: [PERMISO_PUBLICAR[red]],
+    ...cambios,
+  });
+}
+
+// La misma llave de demostración que scripts/secretos-demo.cjs entrega al emulador de funciones.
+export const CLAVE_DEMO = 'MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=';
+
+export async function sembrarSesion(
+  db: Firestore,
+  proveedor: Proveedor,
+  sesion: SesionProveedor = { accessToken: 'token-de-prueba', datos: {} },
+): Promise<void> {
+  await guardarSesion(db, crearCifrador(CLAVE_DEMO), proveedor, sesion, new Date());
 }

@@ -49,6 +49,7 @@ export async function programarPublicacion(
   }
 
   const contexto = await leerContexto(db, publicacion);
+  const modos = await leerModos(db, destinos);
   const errores = validarPublicacion({
     publicacion,
     destinos,
@@ -58,13 +59,9 @@ export async function programarPublicacion(
     numeroDeHijas: contexto.numeroDeHijas,
     ahora,
     hora: inmediata ? 'inmediata' : 'programada',
+    modos,
   }).filter((p) => p.nivel === 'error');
   if (errores.length > 0) throw new HttpsError('failed-precondition', mensajeProblemas(errores));
-
-  const modos = await leerModos(
-    db,
-    destinos.map((d) => d.platform),
-  );
   const hora = inmediata ? ahora : (publicacion.scheduledAt ?? ahora);
 
   const programados = await db.runTransaction(async (tx) => {
@@ -80,7 +77,7 @@ export async function programarPublicacion(
       tx.update(refDestino(db, postId, destino.platform), {
         status: 'programada',
         scheduleVersion,
-        publishMode: modos[destino.platform],
+        publishMode: modos[destino.platform] ?? 'manual',
         scheduledAt,
         statusChangedAt: ahora,
         lease: FieldValue.delete(),
@@ -149,6 +146,10 @@ export async function reintentarDestino(
   if (!destino || destino.status !== 'fallida') throw noReintentable();
 
   const contexto = await leerContexto(db, completa.publicacion);
+  const modos = await leerModos(
+    db,
+    completa.destinos.filter((d) => d.platform === red),
+  );
   const errores = validarPublicacion({
     publicacion: completa.publicacion,
     destinos: completa.destinos,
@@ -157,10 +158,9 @@ export async function reintentarDestino(
     numeroDeHijas: 0,
     ahora,
     hora: 'sin_comprobar',
+    modos,
   }).filter((p) => p.nivel === 'error' && (p.red === undefined || p.red === red));
   if (errores.length > 0) throw new HttpsError('failed-precondition', mensajeProblemas(errores));
-
-  const modos = await leerModos(db, [red]);
   const ref = refDestino(db, postId, red);
   const programado = await db.runTransaction(async (tx) => {
     const actual = await tx.get(ref);
@@ -172,7 +172,7 @@ export async function reintentarDestino(
       status: 'programada',
       scheduleVersion,
       scheduledAt: ahora,
-      publishMode: modos[red],
+      publishMode: modos[red] ?? 'manual',
       statusChangedAt: ahora,
       lastError: FieldValue.delete(),
       lease: FieldValue.delete(),

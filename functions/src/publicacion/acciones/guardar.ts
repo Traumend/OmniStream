@@ -109,11 +109,20 @@ export async function guardarPublicacion(
       const actual = actuales.get(destino.platform);
       const destinoRef = refDestino(db, ref.id, destino.platform);
       if (!actual) {
-        tx.set(destinoRef, destinoNuevo(destino.platform, destino.format, { esHija, ahora, youtube: destino.youtube }));
+        tx.set(
+          destinoRef,
+          destinoNuevo(destino.platform, destino.format, {
+            esHija,
+            ahora,
+            youtube: destino.youtube,
+            tiktok: destino.tiktok,
+          }),
+        );
       } else {
         tx.update(destinoRef, {
           format: destino.format,
           youtube: destino.youtube ?? FieldValue.delete(),
+          tiktok: destino.tiktok ?? FieldValue.delete(),
           'parentRef.status': referenciaAlGuardar(actual.parentRef.status, esHija),
         });
       }

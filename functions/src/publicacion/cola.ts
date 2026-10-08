@@ -8,6 +8,7 @@ export interface TareaPublicacion {
   postId: string;
   platform: Platform;
   scheduleVersion: number;
+  continuacion?: number; // seq del checkpoint desde el que sigue una publicación por API
 }
 
 export type Encolador = (tarea: TareaPublicacion, opciones: { id: string; scheduleTime?: Date }) => Promise<void>;

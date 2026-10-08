@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { decidirToma, estaAtascado, estaVencida, idContinuacion, idReferencia, idTarea, necesitaEncolarse } from './cola';
+import {
+  decidirToma,
+  estaAtascado,
+  estaVencida,
+  idContinuacion,
+  idReferencia,
+  idTarea,
+  necesitaEncolarse,
+} from './cola';
 
 const ahora = new Date('2026-10-07T12:00:00Z');
 const en = (ms: number) => new Date(ahora.getTime() + ms);
@@ -43,9 +51,14 @@ it('necesitaEncolarse: programada, sin tarea de su versión y dentro de 29 días
 });
 
 it('estaAtascado: publicando sin lease vigente', () => {
-  expect(estaAtascado({ status: 'publicando', lease: { attemptId: 'a', until: en(-1) } }, ahora)).toBe(true);
-  expect(estaAtascado({ status: 'publicando' }, ahora)).toBe(true);
-  expect(estaAtascado({ status: 'publicando', lease: { attemptId: 'a', until: en(1000) } }, ahora)).toBe(false);
+  const hace = (ms: number) => ({ status: 'publicando', statusChangedAt: en(-ms) }) as const;
+  expect(estaAtascado({ ...hace(0), lease: { attemptId: 'a', until: en(-1) } }, ahora)).toBe(true);
+  expect(estaAtascado(hace(16 * 60_000), ahora)).toBe(true);
+  expect(estaAtascado({ ...hace(0), lease: { attemptId: 'a', until: en(1000) } }, ahora)).toBe(false);
+});
+
+it('estaAtascado: sin lease y con cambio reciente espera su continuación', () => {
+  expect(estaAtascado({ status: 'publicando', statusChangedAt: en(-60_000) }, ahora)).toBe(false);
 });
 
 it('estaVencida: programada con su tarea encolada y la hora pasada hace más de 15 minutos', () => {
@@ -55,7 +68,6 @@ it('estaVencida: programada con su tarea encolada y la hora pasada hace más de 
   expect(estaVencida({ ...base, enqueuedVersion: 1 }, ahora)).toBe(false);
   expect(estaVencida({ ...base, status: 'pendiente_manual' }, ahora)).toBe(false);
 });
-
 
 it('ids de continuación y de referencia', () => {
   expect(idContinuacion('p1', 'tiktok', 3, 2)).toBe('p1-tiktok-v3-c2');

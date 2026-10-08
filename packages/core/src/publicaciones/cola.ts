@@ -55,8 +55,13 @@ export function necesitaEncolarse(
   );
 }
 
-export const estaAtascado = (destino: Pick<Destino, 'status' | 'lease'>, ahora: Date): boolean =>
-  destino.status === 'publicando' && (!destino.lease || destino.lease.until.getTime() < ahora.getTime());
+// Sin lease, un destino en 'publicando' espera su continuación (por API) o el reintento de Cloud Tasks: se da por
+// atascado si nada lo tocó durante un lease.
+export const estaAtascado = (destino: Pick<Destino, 'status' | 'lease' | 'statusChangedAt'>, ahora: Date): boolean =>
+  destino.status === 'publicando' &&
+  (destino.lease
+    ? destino.lease.until.getTime() < ahora.getTime()
+    : destino.statusChangedAt.getTime() + LEASE_MS < ahora.getTime());
 
 // Su tarea ya se encoló, pero la hora pasó hace más que un lease sin que nadie la tomara: la tarea se perdió
 // (reintentos agotados antes de ejecutarse, cola purgada) o llegó antes de tiempo y terminó sin efecto.
