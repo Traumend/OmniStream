@@ -46,7 +46,7 @@ export async function graphGet(
   ruta: string,
   token: string,
   red: string,
-  opciones: { final?: boolean } = {},
+  opciones: { final?: boolean; clasificar?: (r: RespuestaHttp) => PlatformError | null } = {},
 ): Promise<RespuestaHttp> {
   return solicitar(
     http,
@@ -62,7 +62,7 @@ export async function graphPost(
   token: string,
   red: string,
   parametros: Record<string, string>,
-  opciones: { final?: boolean; timeoutMs?: number } = {},
+  opciones: { final?: boolean; timeoutMs?: number; clasificar?: (r: RespuestaHttp) => PlatformError | null } = {},
 ): Promise<RespuestaHttp> {
   return solicitar(
     http,
