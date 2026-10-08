@@ -6,7 +6,13 @@ import { Meandro } from '@/components/marca/Meandro';
 import { cn } from '@/lib/utils';
 import { estaDisponible, NAV_LATERAL } from './navegacion';
 
-export function BarraLateral({ alNavegar }: { alNavegar?: () => void }) {
+export function BarraLateral({
+  alNavegar,
+  contadores = {},
+}: {
+  alNavegar?: () => void;
+  contadores?: Partial<Record<string, number>>;
+}) {
   const ruta = usePathname();
   return (
     <nav aria-label="Secciones" className="flex h-full flex-col gap-1.5">
@@ -27,6 +33,14 @@ export function BarraLateral({ alNavegar }: { alNavegar?: () => void }) {
               >
                 <Icono className="size-5 shrink-0 text-oro" strokeWidth={1.6} aria-hidden="true" />
                 <span className="flex-1">{item.etiqueta}</span>
+                {(contadores[item.ruta] ?? 0) > 0 && (
+                  <span
+                    aria-label={`${contadores[item.ruta]} pendientes`}
+                    className="cifras min-w-6 rounded-full bg-alerta px-1.5 text-center font-sans text-xs leading-6 text-primary-foreground"
+                  >
+                    {contadores[item.ruta]}
+                  </span>
+                )}
                 {!estaDisponible(item) && (
                   <span className="etiqueta-ornamental rounded-full border border-borde px-2 py-0.5 text-[0.55rem] text-texto-secundario">
                     Fase {item.fase}

@@ -5,6 +5,7 @@ import {
   leerIntento,
   leerPublicacion,
   PLATAFORMAS,
+  urlVideoYoutube,
   type Destino,
   type Intento,
   type Platform,
@@ -182,4 +183,47 @@ export function usePendientes(): { manuales: ItemPendiente[]; referencias: ItemP
     };
   }, []);
   return { manuales, referencias, total: manuales.length + referencias.length };
+}
+
+// Suscripción a un conjunto de publicaciones por id (para unir los pendientes con sus publicaciones).
+export function usePublicacionesPorId(ids: readonly string[]): Map<string, Publicacion> {
+  const [publicaciones, setPublicaciones] = useState<Map<string, Publicacion>>(new Map());
+  const clave = [...new Set(ids)].sort().join(',');
+  useEffect(() => {
+    if (!clave) return;
+    const cancelar = clave.split(',').map((id) =>
+      onSnapshot(doc(db(), 'posts', id), (documento) =>
+        setPublicaciones((actual) => {
+          const siguiente = new Map(actual);
+          if (documento.exists()) siguiente.set(id, leerPublicacion(id, documento.data()));
+          else siguiente.delete(id);
+          return siguiente;
+        }),
+      ),
+    );
+    return () => cancelar.forEach((c) => c());
+  }, [clave]);
+  return publicaciones;
+}
+
+// URL pública del video de YouTube de cada Principal (la que va en la referencia de sus Hijas).
+export function useUrlsDePrincipales(ids: readonly string[]): Map<string, string> {
+  const [urls, setUrls] = useState<Map<string, string>>(new Map());
+  const clave = [...new Set(ids)].sort().join(',');
+  useEffect(() => {
+    if (!clave) return;
+    const cancelar = clave.split(',').map((id) =>
+      onSnapshot(doc(db(), 'posts', id, 'targets', 'youtube'), (documento) =>
+        setUrls((actual) => {
+          const siguiente = new Map(actual);
+          const remoto = documento.exists() ? leerDestino(documento.data()).remote : undefined;
+          if (remoto) siguiente.set(id, urlVideoYoutube(remoto.id));
+          else siguiente.delete(id);
+          return siguiente;
+        }),
+      ),
+    );
+    return () => cancelar.forEach((c) => c());
+  }, [clave]);
+  return urls;
 }

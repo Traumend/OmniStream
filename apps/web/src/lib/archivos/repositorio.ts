@@ -76,9 +76,9 @@ export async function posponerPurga(asset: Asset, ahora: Date = new Date()): Pro
   await updateDoc(doc(obtenerFirebase().db, 'assets', asset.id), { retainUntil: posponerHasta(asset, ahora) });
 }
 
-export function useUrlsFotogramas(asset: Asset): Partial<Record<Fotograma, string>> {
+export function useUrlsFotogramas(asset: Pick<Asset, 'frames'> | undefined): Partial<Record<Fotograma, string>> {
   const [urls, setUrls] = useState<Partial<Record<Fotograma, string>>>({});
-  const clave = JSON.stringify(asset.frames ?? {});
+  const clave = JSON.stringify(asset?.frames ?? {});
   useEffect(() => {
     const frames = JSON.parse(clave) as Partial<Record<Fotograma, string>>;
     let vigente = true;
@@ -94,4 +94,20 @@ export function useUrlsFotogramas(asset: Asset): Partial<Record<Fotograma, strin
     };
   }, [clave]);
   return urls;
+}
+
+// Enlace de descarga del archivo original; error si ya no existe (por ejemplo, purgado).
+export function useUrlDescarga(ruta: string | undefined): { url?: string; error: boolean } {
+  const [estado, setEstado] = useState<{ url?: string; error: boolean }>({ error: false });
+  useEffect(() => {
+    if (!ruta) return;
+    let vigente = true;
+    getDownloadURL(ref(obtenerFirebase().storage, ruta))
+      .then((url) => vigente && setEstado({ url, error: false }))
+      .catch(() => vigente && setEstado({ error: true }));
+    return () => {
+      vigente = false;
+    };
+  }, [ruta]);
+  return estado;
 }
