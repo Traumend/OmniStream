@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPOS_YOUTUBE_POR_DEFECTO } from './tipos';
+import { CAMPOS_TIKTOK_POR_DEFECTO, CAMPOS_YOUTUBE_POR_DEFECTO, type CamposTiktok } from './tipos';
 import { mensajeProblemas, validarPublicacion, type ContextoValidacion } from './validacion';
 
 const ahora = new Date('2026-10-07T12:00:00Z');
@@ -7,6 +7,8 @@ const manana = new Date('2026-10-08T12:00:00Z');
 const vertical = {
   kind: 'video',
   status: 'listo',
+  mimeType: 'video/mp4',
+  sizeBytes: 50_000_000,
   width: 1080,
   height: 1920,
   aspect: 0.5625,
@@ -140,7 +142,7 @@ describe('textos', () => {
     expect(r).toContainEqual({
       nivel: 'error',
       red: 'youtube',
-      mensaje: 'YouTube: la descripción tiene 5001 caracteres y el máximo es 5000.',
+      mensaje: 'YouTube: la descripción pasa de 5.000 bytes (los acentos y emojis ocupan más de uno).',
     });
     expect(r).toContainEqual({
       nivel: 'error',
@@ -173,4 +175,80 @@ it('mensajeProblemas resume los errores', () => {
   const e = (mensaje: string) => ({ nivel: 'error' as const, mensaje });
   expect(mensajeProblemas([e('Elige un archivo.')])).toBe('Elige un archivo.');
   expect(mensajeProblemas([e('A.'), { nivel: 'advertencia', mensaje: 'W.' }, e('B.'), e('C.')])).toBe('A. (y 2 más)');
+});
+
+describe('modo API', () => {
+  const imagen = { kind: 'image', status: 'listo', mimeType: 'image/jpeg', sizeBytes: 1_000_000, width: 1080, height: 1080, aspect: 1 } as const;
+  const errores = (destinos: ContextoValidacion['destinos'], extra: Extra = {}) =>
+    validar(destinos, extra)
+      .filter((p) => p.nivel === 'error')
+      .map((p) => p.mensaje);
+  const tt = (tiktok?: CamposTiktok) => d('tiktok', 'tiktok', tiktok ? { tiktok } : {});
+
+  it('los límites por API solo aplican en modo API', () => {
+    const grande = conAsset({ sizeBytes: 400_000_000 });
+    expect(errores([d('instagram', 'reel')], grande)).toEqual([]);
+    expect(errores([d('instagram', 'reel')], { ...grande, modos: { instagram: 'api' } })).toContain(
+      'Instagram por API admite archivos de hasta 300 MB.',
+    );
+  });
+
+  it('Instagram imagen por API solo JPEG', () => {
+    expect(
+      errores([d('instagram', 'imagen')], { asset: { ...imagen, mimeType: 'image/png' }, modos: { instagram: 'api' } }),
+    ).toContain('Instagram por API solo admite imágenes JPEG.');
+  });
+
+  it('Facebook imagen por API: tipos admitidos', () => {
+    expect(
+      errores([d('facebook', 'imagen')], { asset: { ...imagen, mimeType: 'image/webp' }, modos: { facebook: 'api' } }),
+    ).toContain('Facebook por API solo admite imágenes JPEG, PNG, GIF, BMP o TIFF.');
+  });
+
+  it('TikTok video por API: hasta 10 minutos', () => {
+    const privado = { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy: 'SELF_ONLY' as const };
+    expect(errores([tt(privado)], { ...conAsset({ durationSec: 601 }), modos: { tiktok: 'api' } })).toContain(
+      'TikTok por API admite videos de hasta 10:00.',
+    );
+  });
+
+  it('TikTok por API exige privacidad y declarar bien el contenido comercial', () => {
+    const sinPrivacidad = tt(CAMPOS_TIKTOK_POR_DEFECTO);
+    expect(errores([sinPrivacidad], { modos: { tiktok: 'api' } })).toContain(
+      'Elige quién puede ver la publicación en TikTok.',
+    );
+    expect(errores([sinPrivacidad])).toEqual([]);
+    const comercialVacio = tt({
+      ...CAMPOS_TIKTOK_POR_DEFECTO,
+      privacy: 'PUBLIC_TO_EVERYONE',
+      commercial: { enabled: true, yourBrand: false, brandedContent: false },
+    });
+    expect(errores([comercialVacio], { modos: { tiktok: 'api' } })).toContain(
+      'Indica si el contenido comercial promociona tu marca, a un tercero o a ambos.',
+    );
+    const marcaPrivada = tt({
+      ...CAMPOS_TIKTOK_POR_DEFECTO,
+      privacy: 'SELF_ONLY',
+      commercial: { enabled: true, yourBrand: false, brandedContent: true },
+    });
+    expect(errores([marcaPrivada], { modos: { tiktok: 'api' } })).toContain(
+      'El contenido de marca no puede ser privado en TikTok.',
+    );
+  });
+
+  it('la descripción de YouTube se mide en bytes', () => {
+    const desc = 'á'.repeat(2501);
+    expect(errores([youtube({ ...CAMPOS_YOUTUBE_POR_DEFECTO, description: desc })])).toContain(
+      'YouTube: la descripción pasa de 5.000 bytes (los acentos y emojis ocupan más de uno).',
+    );
+  });
+
+  it('Instagram admite hasta 20 menciones', () => {
+    const texto = Array.from({ length: 21 }, (_, i) => `@cuenta${i}`).join(' ');
+    expect(errores([d('instagram', 'reel')], conTexto(texto))).toContain(
+      'Instagram admite hasta 20 menciones (@) por publicación.',
+    );
+    const veinte = Array.from({ length: 20 }, (_, i) => `@cuenta${i}`).join(' ');
+    expect(errores([d('instagram', 'reel')], conTexto(veinte))).toEqual([]);
+  });
 });

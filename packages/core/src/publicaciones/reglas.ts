@@ -91,7 +91,37 @@ export function proporcionCompatible(regla: ReglaFormato, aspect: number): boole
   );
 }
 
+// La descripción se mide en bytes UTF-8 (spec 7.4, verificado en la fase 2B).
 export const LIMITES_YOUTUBE = { titulo: 100, descripcion: 5000, etiquetas: 500 } as const;
+
+export const contarBytesUtf8 = (texto: string): number => new TextEncoder().encode(texto).length;
+
+export interface LimiteApi {
+  tamanoMaxBytes?: number;
+  tiposMime?: readonly string[];
+  duracionMaxSec?: number;
+}
+
+// Límites de las APIs (V3, verificados el 2026-10-08). Solo aplican a destinos en modo API. MB decimales.
+export const LIMITES_API: Record<Platform, Partial<Record<FormatoDestino, LimiteApi>>> = {
+  facebook: {
+    imagen: {
+      tamanoMaxBytes: 10_000_000,
+      tiposMime: ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff'],
+    },
+  },
+  instagram: {
+    reel: { tamanoMaxBytes: 300_000_000 },
+    imagen: { tamanoMaxBytes: 8_000_000, tiposMime: ['image/jpeg'] },
+  },
+  youtube: {},
+  tiktok: {
+    tiktok: { tamanoMaxBytes: 4_000_000_000, duracionMaxSec: 600 },
+    imagen: { tamanoMaxBytes: 20_000_000, tiposMime: ['image/jpeg', 'image/webp'] },
+  },
+};
+
+export const LIMITE_MENCIONES_INSTAGRAM = 20;
 
 // YouTube cuenta las comas entre etiquetas y las comillas que rodean a las etiquetas con espacios.
 export function largoEtiquetasYoutube(tags: readonly string[]): number {

@@ -2,12 +2,21 @@ import type { Asset } from '../archivos/asset';
 import { formatearDuracion } from '../archivos/formato';
 import { describirProporcion } from '../archivos/fotogramas';
 import { problemasDeJerarquia } from './jerarquia';
-import { LIMITES_YOUTUBE, largoEtiquetasYoutube, proporcionCompatible, REGLAS } from './reglas';
+import {
+  contarBytesUtf8,
+  LIMITE_MENCIONES_INSTAGRAM,
+  LIMITES_API,
+  LIMITES_YOUTUBE,
+  largoEtiquetasYoutube,
+  proporcionCompatible,
+  REGLAS,
+} from './reglas';
 import { contarCaracteres, contenidoFinal, textoReferencia, urlVideoYoutube } from './texto';
 import {
   ETIQUETAS_FORMATO,
   ETIQUETAS_RED,
   type Destino,
+  type ModoPublicacion,
   type Platform,
   type Publicacion,
   type TipoPublicacion,
@@ -21,16 +30,39 @@ export interface Problema {
 
 export interface ContextoValidacion {
   publicacion: Pick<Publicacion, 'title' | 'assetId' | 'base' | 'scheduledAt' | 'parentId'>;
-  destinos: readonly Pick<Destino, 'platform' | 'format' | 'overrides' | 'youtube'>[];
-  asset: Pick<Asset, 'kind' | 'status' | 'width' | 'height' | 'aspect' | 'durationSec'> | null;
+  destinos: readonly Pick<Destino, 'platform' | 'format' | 'overrides' | 'youtube' | 'tiktok'>[];
+  asset:
+    | (Pick<Asset, 'kind' | 'status' | 'width' | 'height' | 'aspect' | 'durationSec'> &
+        Partial<Pick<Asset, 'mimeType' | 'sizeBytes'>>)
+    | null;
   principal: Pick<Publicacion, 'id' | 'kind' | 'title'> | null;
   tipoActual?: TipoPublicacion;
   numeroDeHijas: number;
   ahora: Date;
   hora: 'programada' | 'inmediata' | 'sin_comprobar';
+  modos?: Partial<Record<Platform, ModoPublicacion>>;
 }
 
 const RESOLUCION_MINIMA = 720;
+const NOMBRES_MIME: Record<string, string> = {
+  'image/jpeg': 'JPEG',
+  'image/png': 'PNG',
+  'image/gif': 'GIF',
+  'image/bmp': 'BMP',
+  'image/tiff': 'TIFF',
+  'image/webp': 'WEBP',
+};
+const MENCION = /(^|\s)@[\w.]+/g;
+
+function listaConO(elementos: readonly string[]): string {
+  if (elementos.length <= 1) return elementos.join('');
+  return `${elementos.slice(0, -1).join(', ')} o ${elementos.at(-1)}`;
+}
+
+// Los límites de las redes están en unidades decimales (300 MB = 300.000.000 bytes).
+function formatearTamanoDecimal(bytes: number): string {
+  return bytes >= 1_000_000_000 ? `${bytes / 1_000_000_000} GB` : `${bytes / 1_000_000} MB`;
+}
 // Peor caso de la URL de referencia: los ids de YouTube tienen 11 caracteres.
 const URL_PRINCIPAL_DE_MUESTRA = urlVideoYoutube('XXXXXXXXXXX');
 
@@ -100,6 +132,44 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
       }
     }
 
+    const porApi = contexto.modos?.[red] === 'api';
+    const limite = LIMITES_API[red][destino.format];
+    if (porApi && archivo && limite) {
+      if (limite.tamanoMaxBytes !== undefined && (archivo.sizeBytes ?? 0) > limite.tamanoMaxBytes) {
+        agregar(
+          'error',
+          `${ETIQUETAS_RED[red]} por API admite archivos de hasta ${formatearTamanoDecimal(limite.tamanoMaxBytes)}.`,
+          red,
+        );
+      }
+      if (limite.tiposMime && archivo.mimeType && !limite.tiposMime.includes(archivo.mimeType)) {
+        const tipos = listaConO(limite.tiposMime.map((t) => NOMBRES_MIME[t] ?? t));
+        agregar('error', `${ETIQUETAS_RED[red]} por API solo admite imágenes ${tipos}.`, red);
+      }
+      if (
+        limite.duracionMaxSec !== undefined &&
+        archivo.durationSec !== undefined &&
+        archivo.durationSec > limite.duracionMaxSec
+      ) {
+        agregar(
+          'error',
+          `${ETIQUETAS_RED[red]} por API admite videos de hasta ${formatearDuracion(limite.duracionMaxSec)}.`,
+          red,
+        );
+      }
+    }
+    if (porApi && red === 'tiktok') {
+      const tiktok = destino.tiktok;
+      if (!tiktok?.privacy) agregar('error', 'Elige quién puede ver la publicación en TikTok.', red);
+      const comercial = tiktok?.commercial;
+      if (comercial?.enabled && !comercial.yourBrand && !comercial.brandedContent) {
+        agregar('error', 'Indica si el contenido comercial promociona tu marca, a un tercero o a ambos.', red);
+      }
+      if (comercial?.enabled && comercial.brandedContent && tiktok?.privacy === 'SELF_ONLY') {
+        agregar('error', 'El contenido de marca no puede ser privado en TikTok.', red);
+      }
+    }
+
     const referencia =
       red === 'tiktok' && publicacion.parentId
         ? textoReferencia(contexto.principal?.title ?? '', URL_PRINCIPAL_DE_MUESTRA)
@@ -114,6 +184,9 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
           red,
         );
       }
+    }
+    if (red === 'instagram' && (contenido.texto.match(MENCION) ?? []).length > LIMITE_MENCIONES_INSTAGRAM) {
+      agregar('error', `Instagram admite hasta ${LIMITE_MENCIONES_INSTAGRAM} menciones (@) por publicación.`, red);
     }
     if (regla.limiteHashtags !== undefined) {
       const cantidad = (destino.overrides.hashtags ?? publicacion.base.hashtags).length;
@@ -136,11 +209,10 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
       if (/[<>]/.test(titulo) || /[<>]/.test(contenido.texto)) {
         agregar('error', 'YouTube: el título y la descripción no pueden contener los signos < ni >.', red);
       }
-      const largoDescripcion = contarCaracteres(contenido.texto);
-      if (largoDescripcion > LIMITES_YOUTUBE.descripcion) {
+      if (contarBytesUtf8(contenido.texto) > LIMITES_YOUTUBE.descripcion) {
         agregar(
           'error',
-          `YouTube: la descripción tiene ${largoDescripcion} caracteres y el máximo es ${LIMITES_YOUTUBE.descripcion}.`,
+          'YouTube: la descripción pasa de 5.000 bytes (los acentos y emojis ocupan más de uno).',
           red,
         );
       }

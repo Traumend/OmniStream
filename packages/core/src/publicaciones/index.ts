@@ -10,3 +10,4 @@ export * from './urls';
 export * from './validacion';
 export * from './cola';
 export * from './avisos';
+export * from './efectivo';
