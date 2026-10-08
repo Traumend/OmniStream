@@ -7,16 +7,19 @@ import {
   ETIQUETAS_RED,
   FORMATOS_POR_RED,
   formatearDuracion,
+  modoDePublicacion,
   PLATAFORMAS,
   REGLAS,
   sugerirDestinos,
   textoReferencia,
   urlVideoYoutube,
   type Asset,
+  type Conexion,
   type Destino,
   type EntradaPublicacion,
   type FormatoDestino,
   type Fotograma,
+  type ModoPublicacion,
   type Platform,
   type Publicacion,
 } from '@omnistream/core';
@@ -26,11 +29,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import type { EstadoInfoTiktok } from '@/lib/conexiones/useInfoCreadorTiktok';
 import { aEntrada, aFormulario, FORMULARIO_VACIO, type FormularioPublicacion } from '@/lib/publicaciones/formulario';
 import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
 import { ConfirmarEnvio } from './ConfirmarEnvio';
 import { ListaErrores } from './ListaErrores';
+import { SeccionTiktok } from './SeccionTiktok';
 
 export type { Intencion };
 
@@ -42,8 +47,13 @@ export interface PropsEditor {
   archivoInicial?: string;
   ahora?: () => Date;
   renderMiniatura?(asset: Asset): ReactNode;
+  // Conexiones de las redes: deciden si cada destino se publica por API o en modo manual.
+  conexiones?: Partial<Record<Platform, Conexion>>;
+  infoTiktok?: EstadoInfoTiktok;
   alEnviar(entrada: EntradaPublicacion, intencion: Intencion): Promise<void>;
 }
+
+const SIN_INFO_TIKTOK: EstadoInfoTiktok = { info: null, cargando: false, error: null };
 
 // Peor caso del largo de la referencia en TikTok: los ids de YouTube tienen 11 caracteres.
 const URL_DE_MUESTRA = urlVideoYoutube('XXXXXXXXXXX');
@@ -112,6 +122,8 @@ export function EditorPublicacion({
   archivoInicial,
   ahora = () => new Date(),
   renderMiniatura,
+  conexiones = {},
+  infoTiktok = SIN_INFO_TIKTOK,
   alEnviar,
 }: PropsEditor) {
   const [form, setForm] = useState<FormularioPublicacion>(() =>
@@ -134,6 +146,17 @@ export function EditorPublicacion({
   const principal = opcionesPrincipal.find((p) => p.publicacion.id === form.parentId)?.publicacion ?? null;
   const esPrincipal = form.redes.youtube === 'video_largo';
   const entrada = useMemo(() => aEntrada(form, zona, postId), [form, zona, postId]);
+  const modos = useMemo(
+    () =>
+      Object.fromEntries(
+        PLATAFORMAS.flatMap((red) => {
+          const formato = form.redes[red];
+          return formato ? [[red, modoDePublicacion(conexiones[red], formato)]] : [];
+        }),
+      ) as Partial<Record<Platform, ModoPublicacion>>,
+    [form.redes, conexiones],
+  );
+  const formatoTiktok = form.redes.tiktok;
 
   const actualizar = (cambios: Partial<FormularioPublicacion>) => setForm((f) => ({ ...f, ...cambios }));
   const actualizarYoutube = (cambios: Partial<FormularioPublicacion['youtube']>) =>
@@ -181,6 +204,8 @@ export function EditorPublicacion({
         tipoActual: inicial?.publicacion.kind,
         numeroDeHijas: inicial?.hijas ?? 0,
         ahora: ahora(),
+        modos,
+        duracionMaximaTiktokSeg: infoTiktok.info?.duracionMaximaSeg,
       },
       intencion,
       esProgramada,
@@ -255,7 +280,12 @@ export function EditorPublicacion({
           {PLATAFORMAS.map((red) => {
             const formato = form.redes[red];
             return (
-              <div key={red} className="flex items-center gap-3 rounded-[14px] border border-borde p-3">
+              <div
+                key={red}
+                role="group"
+                aria-label={`Red ${ETIQUETAS_RED[red]}`}
+                className="flex flex-wrap items-center gap-3 rounded-[14px] border border-borde p-3"
+              >
                 <label className="flex flex-1 items-center gap-2 text-texto">
                   <input
                     type="checkbox"
@@ -278,6 +308,16 @@ export function EditorPublicacion({
                       </option>
                     ))}
                   </select>
+                )}
+                {formato && (
+                  <span
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-xs',
+                      modos[red] === 'api' ? 'border-oro text-oro-profundo' : 'border-borde text-texto-secundario',
+                    )}
+                  >
+                    {modos[red] === 'api' ? 'Por API' : 'Manual'}
+                  </span>
                 )}
               </div>
             );
@@ -426,6 +466,16 @@ export function EditorPublicacion({
             Hecho para niños
           </label>
         </Seccion>
+      )}
+
+      {formatoTiktok && modos.tiktok === 'api' && (
+        <SeccionTiktok
+          {...infoTiktok}
+          valores={form.tiktok}
+          formato={formatoTiktok === 'imagen' ? 'imagen' : 'tiktok'}
+          duracionSeg={asset?.durationSec}
+          alCambiar={(tiktok) => actualizar({ tiktok })}
+        />
       )}
 
       <Seccion titulo="Fecha y hora">

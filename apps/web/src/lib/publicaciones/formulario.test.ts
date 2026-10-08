@@ -1,5 +1,5 @@
 import type { Destino, Publicacion } from '@omnistream/core';
-import { CAMPOS_YOUTUBE_POR_DEFECTO } from '@omnistream/core';
+import { CAMPOS_TIKTOK_POR_DEFECTO, CAMPOS_YOUTUBE_POR_DEFECTO } from '@omnistream/core';
 import { expect, it } from 'vitest';
 import { aEntrada, aFormulario, FORMULARIO_VACIO } from './formulario';
 
@@ -37,7 +37,7 @@ it('aEntrada arma destinos, hashtags, etiquetas de YouTube y la fecha en UTC', (
         thumbnail: { frame: 'start' },
       },
     },
-    { platform: 'tiktok', format: 'tiktok' },
+    { platform: 'tiktok', format: 'tiktok', tiktok: CAMPOS_TIKTOK_POR_DEFECTO },
   ]);
 });
 
@@ -83,7 +83,7 @@ it('aFormulario es la inversa de aEntrada', () => {
       format: 'short',
       youtube: { ...CAMPOS_YOUTUBE_POR_DEFECTO, tags: ['a', 'b'], thumbnail: { frame: 'middle' } },
     },
-    { ...comun, platform: 'tiktok', format: 'tiktok' },
+    { ...comun, platform: 'tiktok', format: 'tiktok', tiktok: { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy: 'SELF_ONLY' } },
   ];
   const entrada = aEntrada(aFormulario(publicacion, destinos, 'America/Mexico_City'), 'America/Mexico_City', 'p9');
   expect(entrada).toMatchObject({
@@ -100,6 +100,31 @@ it('aFormulario es la inversa de aEntrada', () => {
       format: 'short',
       youtube: { ...CAMPOS_YOUTUBE_POR_DEFECTO, tags: ['a', 'b'], thumbnail: { frame: 'middle' } },
     },
-    { platform: 'tiktok', format: 'tiktok' },
+    { platform: 'tiktok', format: 'tiktok', tiktok: { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy: 'SELF_ONLY' } },
   ]);
+});
+
+it('los campos de TikTok van y vuelven', () => {
+  const tiktok = {
+    ...CAMPOS_TIKTOK_POR_DEFECTO,
+    privacy: 'FOLLOWER_OF_CREATOR' as const,
+    allowComments: true,
+    commercial: { enabled: true, yourBrand: true, brandedContent: false },
+  };
+  const entrada = aEntrada({ ...FORMULARIO_VACIO, title: 'x', redes: { tiktok: 'tiktok' }, tiktok }, 'UTC');
+  expect(entrada.destinos).toEqual([{ platform: 'tiktok', format: 'tiktok', tiktok }]);
+  const publicacion = {
+    id: 'p1',
+    kind: 'independiente',
+    status: 'borrador',
+    title: 'x',
+    base: { text: '', hashtags: [] },
+    scheduledAt: null,
+    targetStatus: {},
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as Publicacion;
+  const destino = { platform: 'tiktok', format: 'tiktok', tiktok } as Destino;
+  expect(aFormulario(publicacion, [destino], 'UTC').tiktok).toEqual(tiktok);
+  expect(aFormulario(publicacion, [], 'UTC').tiktok).toEqual(CAMPOS_TIKTOK_POR_DEFECTO);
 });

@@ -1,4 +1,4 @@
-import type { Asset, Publicacion } from '@omnistream/core';
+import { leerConexion, type Asset, type InfoCreadorTiktok, type Publicacion } from '@omnistream/core';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -163,4 +163,73 @@ it('una publicación programada ofrece Guardar cambios y no Programar', () => {
   expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Programar' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Título')).toHaveValue('Ya programada');
+});
+
+const INFO_TIKTOK: InfoCreadorTiktok = {
+  nickname: 'Mi Canal',
+  username: 'micanal',
+  privacidades: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'],
+  comentariosDesactivados: false,
+  duetDesactivado: false,
+  stitchDesactivado: false,
+  duracionMaximaSeg: 600,
+};
+const TIKTOK_API = {
+  conexiones: {
+    tiktok: leerConexion('tiktok', { authStatus: 'conectada', publishMode: 'api', scopes: ['video.publish'] }),
+  },
+  infoTiktok: { info: INFO_TIKTOK, cargando: false, error: null },
+};
+
+it('la sección de TikTok solo aparece en modo API', async () => {
+  const { user } = montar();
+  await elegirArchivo(user, 'vertical.mp4');
+  expect(screen.queryByRole('region', { name: 'TikTok' })).not.toBeInTheDocument();
+});
+
+it('con TikTok por API muestra su sección', async () => {
+  const { user } = montar(TIKTOK_API);
+  await elegirArchivo(user, 'vertical.mp4');
+  expect(screen.getByRole('region', { name: 'TikTok' })).toBeInTheDocument();
+  expect(screen.getByText('Publicará como Mi Canal (@micanal)')).toBeInTheDocument();
+});
+
+it('Programar sin privacidad de TikTok por API muestra el error y no confirma', async () => {
+  const { user, alEnviar } = montar(TIKTOK_API);
+  await user.type(screen.getByLabelText('Título'), 'Hola');
+  await elegirArchivo(user, 'vertical.mp4');
+  fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-10-08' } });
+  fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '10:30' } });
+  await user.click(screen.getByRole('button', { name: 'Programar' }));
+  expect(
+    within(screen.getByRole('alert')).getByText('Elige quién puede ver la publicación en TikTok.'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+  await user.selectOptions(screen.getByLabelText('¿Quién puede verlo?'), 'PUBLIC_TO_EVERYONE');
+  await user.click(screen.getByRole('button', { name: 'Programar' }));
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirmar' }));
+  expect(alEnviar.mock.calls[0]?.[0].destinos).toContainEqual(
+    expect.objectContaining({ platform: 'tiktok', tiktok: expect.objectContaining({ privacy: 'PUBLIC_TO_EVERYONE' }) }),
+  );
+});
+
+it('la duración máxima de la cuenta de TikTok bloquea el envío', async () => {
+  const { user } = montar({
+    ...TIKTOK_API,
+    infoTiktok: { ...TIKTOK_API.infoTiktok, info: { ...INFO_TIKTOK, duracionMaximaSeg: 15 } },
+  });
+  await user.type(screen.getByLabelText('Título'), 'Hola');
+  await elegirArchivo(user, 'vertical.mp4');
+  await user.click(screen.getByRole('button', { name: 'Publicar ahora' }));
+  expect(
+    within(screen.getByRole('alert')).getByText('Tu cuenta de TikTok admite videos de hasta 0:15.'),
+  ).toBeInTheDocument();
+});
+
+it('cada red muestra su modo', async () => {
+  const { user } = montar(TIKTOK_API);
+  await elegirArchivo(user, 'vertical.mp4');
+  expect(within(screen.getByRole('group', { name: 'Red TikTok' })).getByText('Por API')).toBeInTheDocument();
+  expect(within(screen.getByRole('group', { name: 'Red Facebook' })).getByText('Manual')).toBeInTheDocument();
 });

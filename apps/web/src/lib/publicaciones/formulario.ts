@@ -1,7 +1,9 @@
 import {
+  CAMPOS_TIKTOK_POR_DEFECTO,
   CAMPOS_YOUTUBE_POR_DEFECTO,
   normalizarHashtags,
   PLATAFORMAS,
+  type CamposTiktok,
   type CamposYoutube,
   type Destino,
   type EntradaPublicacion,
@@ -29,6 +31,7 @@ export interface FormularioPublicacion {
     madeForKids: boolean;
     frame: Fotograma;
   };
+  tiktok: CamposTiktok;
 }
 
 export const FORMULARIO_VACIO: FormularioPublicacion = {
@@ -48,6 +51,7 @@ export const FORMULARIO_VACIO: FormularioPublicacion = {
     madeForKids: CAMPOS_YOUTUBE_POR_DEFECTO.madeForKids,
     frame: 'start',
   },
+  tiktok: CAMPOS_TIKTOK_POR_DEFECTO,
 };
 
 const etiquetasDe = (texto: string) =>
@@ -60,6 +64,7 @@ export function aEntrada(form: FormularioPublicacion, zona: string, postId?: str
   const destinos = PLATAFORMAS.flatMap((platform): EntradaPublicacion['destinos'] => {
     const format = form.redes[platform];
     if (!format) return [];
+    if (platform === 'tiktok') return [{ platform, format, tiktok: form.tiktok }];
     if (platform !== 'youtube') return [{ platform, format }];
     const { description, tags, categoryId, privacy, madeForKids, frame } = form.youtube;
     return [
@@ -89,6 +94,7 @@ export function aFormulario(
 ): FormularioPublicacion {
   const partes = publicacion.scheduledAt ? aPartesLocales(publicacion.scheduledAt, zona) : { fecha: '', hora: '' };
   const youtube = destinos.find((d) => d.platform === 'youtube')?.youtube ?? CAMPOS_YOUTUBE_POR_DEFECTO;
+  const tiktok = destinos.find((d) => d.platform === 'tiktok')?.tiktok ?? CAMPOS_TIKTOK_POR_DEFECTO;
   return {
     title: publicacion.title,
     assetId: publicacion.assetId ?? '',
@@ -106,5 +112,6 @@ export function aFormulario(
       madeForKids: youtube.madeForKids,
       frame: youtube.thumbnail?.frame ?? 'start',
     },
+    tiktok,
   };
 }

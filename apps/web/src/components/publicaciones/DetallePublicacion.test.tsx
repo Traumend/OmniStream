@@ -167,3 +167,39 @@ it('muestra los intentos de cada destino', () => {
   ).toBeInTheDocument();
   expect(within(intentos).getByText(/manual/)).toBeInTheDocument();
 });
+
+it('muestra el modo de cada destino', () => {
+  montar({ destinos: [destino('tiktok', 'programada', { publishMode: 'api' }), destino('facebook', 'programada')] });
+  expect(within(screen.getByRole('region', { name: 'TikTok' })).getByText('Por API')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Facebook' })).getByText('Manual')).toBeInTheDocument();
+});
+
+it('un error de autenticación enlaza a Conexiones', () => {
+  montar({
+    destinos: [
+      destino('youtube', 'fallida', {
+        publishMode: 'api',
+        lastError: { code: 'sin_conexion', kind: 'auth', message: 'YouTube no está conectada.', at: new Date() },
+      }),
+    ],
+  });
+  expect(screen.getByRole('link', { name: 'Reconectar en Ajustes' })).toHaveAttribute('href', '/ajustes/conexiones');
+});
+
+it('un error que no es de autenticación no ofrece reconectar', () => {
+  montar({
+    destinos: [
+      destino('youtube', 'fallida', {
+        lastError: { code: 'x', kind: 'definitivo', message: 'Falló.', at: new Date() },
+      }),
+    ],
+  });
+  expect(screen.queryByRole('link', { name: 'Reconectar en Ajustes' })).not.toBeInTheDocument();
+});
+
+it('TikTok por API avisa que puede tardar unos minutos', () => {
+  montar({ destinos: [destino('tiktok', 'publicando', { publishMode: 'api' })] });
+  expect(
+    screen.getByText('TikTok puede tardar unos minutos en procesarla y mostrarla en tu perfil.'),
+  ).toBeInTheDocument();
+});

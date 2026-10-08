@@ -5,3 +5,10 @@ import { afterEach } from 'vitest';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom no implementa ResizeObserver; los controles de Radix (Switch) lo usan para medirse.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

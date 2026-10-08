@@ -1,12 +1,14 @@
 'use client';
 
-import { esEditable } from '@omnistream/core';
+import { esEditable, modoDePublicacion } from '@omnistream/core';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { MiniaturaArchivo } from '@/components/biblioteca/MiniaturaArchivo';
 import { Cargando } from '@/components/comunes/Cargando';
 import { EditorPublicacion } from '@/components/publicaciones/EditorPublicacion';
 import { useEstadoAjustes } from '@/lib/ajustes/useAjustes';
+import { useConexiones } from '@/lib/conexiones/repositorio';
+import { useInfoCreadorTiktok } from '@/lib/conexiones/useInfoCreadorTiktok';
 import { useArchivos } from '@/lib/archivos/repositorio';
 import { useEnviarPublicacion } from '@/lib/publicaciones/enviar';
 import { useHijas, usePrincipales, usePublicacion } from '@/lib/publicaciones/repositorio';
@@ -18,6 +20,9 @@ export default function EditarPublicacion() {
   const { ajustes, cargando: cargandoAjustes } = useEstadoAjustes();
   const { archivos, cargando: cargandoArchivos } = useArchivos();
   const principales = usePrincipales();
+  const { conexiones } = useConexiones();
+  // Con TikTok por API se consulta la cuenta al abrir el editor, como piden sus pautas.
+  const infoTiktok = useInfoCreadorTiktok(modoDePublicacion(conexiones.tiktok) === 'api');
   const programada = destinos.some((d) => d.status === 'programada');
   const enviar = useEnviarPublicacion(programada ? 'Cambios guardados' : 'Borrador guardado');
 
@@ -42,6 +47,8 @@ export default function EditarPublicacion() {
         principales={principales}
         inicial={{ publicacion, destinos, hijas: hijas.length }}
         renderMiniatura={(asset) => <MiniaturaArchivo asset={asset} />}
+        conexiones={conexiones}
+        infoTiktok={infoTiktok}
         alEnviar={enviar}
       />
     );

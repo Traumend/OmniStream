@@ -85,9 +85,27 @@ function DestinoDetalle({
       {destino.scheduledAt && (
         <p className="cifras text-sm text-texto-secundario">Hora: {formatearFechaHora(destino.scheduledAt, zona)}</p>
       )}
+      <p className="text-sm text-texto-secundario">{destino.publishMode === 'api' ? 'Por API' : 'Manual'}</p>
       {destino.status === 'fallida' && destino.lastError && (
-        <p className="text-sm text-peligro">{destino.lastError.message}</p>
+        <p className="text-sm text-peligro">
+          {destino.lastError.message}
+          {destino.lastError.kind === 'auth' && (
+            <>
+              {' '}
+              <Link href="/ajustes/conexiones" className={ENLACE}>
+                Reconectar en Ajustes
+              </Link>
+            </>
+          )}
+        </p>
       )}
+      {red === 'tiktok' &&
+        destino.publishMode === 'api' &&
+        (destino.status === 'publicando' || destino.status === 'publicada') && (
+          <p className="text-sm text-texto-secundario">
+            TikTok puede tardar unos minutos en procesarla y mostrarla en tu perfil.
+          </p>
+        )}
       {destino.parentRef.status === 'en_espera' && (
         <p className="text-sm text-texto-secundario">
           La referencia se habilitará cuando se publique el video principal.
