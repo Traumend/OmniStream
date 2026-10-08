@@ -14,6 +14,7 @@ export interface OpcionesSolicitud {
   clasificar(r: RespuestaHttp): PlatformError | null;
   final?: boolean; // paso que crea la publicación: sin respuesta es ambiguo
   timeoutMs?: number;
+  aceptar?: readonly number[]; // estados que el paso maneja (por ejemplo 404 de una sesión vencida)
 }
 
 function clasificacionGenerica(red: string, r: RespuestaHttp): PlatformError | null {
@@ -44,6 +45,7 @@ export async function solicitar(
     json = null;
   }
   const r: RespuestaHttp = { status: respuesta.status, headers: respuesta.headers, json, texto };
+  if (opciones.aceptar?.includes(r.status)) return r;
   const error = opciones.clasificar(r) ?? clasificacionGenerica(opciones.red, r);
   if (error) throw error;
   return r;

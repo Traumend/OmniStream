@@ -28,7 +28,7 @@ export interface ArchivoFuente {
   size: number;
   mimeType: string;
   urlFirmada(): Promise<string>; // enlace de lectura de 1 hora
-  leerRango(inicio: number, finInclusivo: number): Promise<Uint8Array>;
+  leerRango(inicio: number, finInclusivo: number): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export interface ContextoLectura {

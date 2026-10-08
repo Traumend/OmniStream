@@ -57,3 +57,14 @@ class PlatformErrorDePrueba extends PlatformError {
     super('temporal', 'propio', 'Propio.');
   }
 }
+
+it('los estados aceptados no son error', async () => {
+  const http = fetchGrabado([{ metodo: 'PUT', url: 'https://api.test/e', respuesta: { status: 404 } }]);
+  const r = await solicitar(
+    http,
+    'https://api.test/e',
+    { method: 'PUT' },
+    { red: 'YouTube', clasificar: () => null, aceptar: [404] },
+  );
+  expect(r.status).toBe(404);
+});

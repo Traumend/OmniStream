@@ -3,7 +3,7 @@ import type { Http } from '../http';
 export interface Intercambio {
   metodo: string;
   url: string | RegExp;
-  revisar?(peticion: { cuerpo: string | Uint8Array | undefined; headers: Headers; url: string }): void;
+  revisar?(peticion: { cuerpo: string | Uint8Array<ArrayBuffer> | undefined; headers: Headers; url: string }): void;
   respuesta: { status: number; json?: unknown; texto?: string; headers?: Record<string, string> } | 'sin_respuesta';
 }
 
@@ -23,7 +23,7 @@ export function fetchGrabado(intercambios: Intercambio[]): Http & { pendientes()
         `Petición inesperada: ${metodo} ${url}${esperado ? ` (se esperaba ${esperado.metodo} ${String(esperado.url)})` : ''}`,
       );
     }
-    const cuerpo = init?.body as string | Uint8Array | undefined;
+    const cuerpo = init?.body as string | Uint8Array<ArrayBuffer> | undefined;
     esperado.revisar?.({ cuerpo, headers: new Headers(init?.headers), url });
     if (esperado.respuesta === 'sin_respuesta') throw new TypeError('fetch failed');
     const { status, json, texto, headers } = esperado.respuesta;
