@@ -1,21 +1,30 @@
 import {
+  avisoPromocion,
   estaAtascado,
   estaVencida,
+  leerConexion,
   leerDestino,
+  leerPublicacion,
   necesitaEncolarse,
+  vencidosSinAviso,
   VENTANA_COLA_MS,
   type Destino,
 } from '@omnistream/core';
-import { getFirestore, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { REGION } from '../config';
+import { activarReferenciasDeHijas, type DependenciasCambio } from './alCambiarDestino';
 import { encolarDestino, encoladorCloudTasks, type Encolador } from './cola';
+import { encoladorReferencias } from './comentarReferencia';
+import { crearNotificador, enviarPushFcm, type Notificador } from './notificaciones';
 
 interface DependenciasEncolado {
   db: Firestore;
   encolar: Encolador;
   ahora: Date;
+  // Para las referencias que esperaban un Principal programado y los avisos de promoción.
+  cambio?: DependenciasCambio;
 }
 
 const postIdDe = (documento: QueryDocumentSnapshot) => documento.ref.parent.parent?.id;
@@ -60,12 +69,77 @@ export async function encolarPendientesAhora(
     (await encolarCada(programados.docs, (d) => estaVencida(d, ahora), deps, true)) +
     (await encolarCada(publicando.docs, (d) => estaAtascado(d, ahora), deps, true));
   if (encolados + recuperados > 0) logger.info('Destinos encolados', { encolados, recuperados });
+
+  if (deps.cambio) {
+    await liberarPrincipalesEnEspera(db, deps.cambio, ahora);
+    await avisarPromocion(db, deps.cambio.notificar, ahora);
+  }
   return { encolados, recuperados };
+}
+
+// Un Principal importado y programado en YouTube ya se publicó: sus Hijas activan la referencia.
+async function liberarPrincipalesEnEspera(db: Firestore, cambio: DependenciasCambio, ahora: Date): Promise<void> {
+  const enEspera = await db.collection('posts').where('awaitingPublicationUntil', '<=', ahora).get();
+  for (const principal of enEspera.docs) {
+    try {
+      await activarReferenciasDeHijas(db, principal.id, cambio, `espera-${principal.id}`);
+      await principal.ref.update({ awaitingPublicationUntil: FieldValue.delete() });
+    } catch (error) {
+      logger.error('No se pudieron activar las referencias del Principal', {
+        postId: principal.id,
+        error: String(error),
+      });
+    }
+  }
+}
+
+// Avisa una sola vez cada pendiente de promoción vencido: el id del aviso y notifiedAt evitan repetirlo.
+export async function avisarPromocion(db: Firestore, notificar: Notificador, ahora: Date): Promise<number> {
+  const principales = await db.collection('posts').where('kind', '==', 'principal').get();
+  let avisados = 0;
+  for (const documento of principales.docs) {
+    const publicacion = leerPublicacion(documento.id, documento.data());
+    const vencidos = vencidosSinAviso(publicacion.promotion?.items ?? [], ahora);
+    for (const item of vencidos) {
+      try {
+        await notificar(
+          `promocion-${publicacion.id}-${item.id}`,
+          avisoPromocion({ postId: publicacion.id, tituloPrincipal: publicacion.title, item }),
+        );
+        await db.runTransaction(async (tx) => {
+          const actual = await tx.get(documento.ref);
+          const items = leerPublicacion(actual.id, actual.data()).promotion?.items;
+          if (!items) return;
+          tx.update(documento.ref, {
+            'promotion.items': items.map((i) => (i.id === item.id && !i.notifiedAt ? { ...i, notifiedAt: ahora } : i)),
+          });
+        });
+        avisados++;
+      } catch (error) {
+        logger.error('No se pudo avisar la promoción', {
+          postId: publicacion.id,
+          itemId: item.id,
+          error: String(error),
+        });
+      }
+    }
+  }
+  return avisados;
 }
 
 export const encolarPendientes = onSchedule(
   { schedule: 'every 60 minutes', timeZone: 'UTC', region: REGION },
   async () => {
-    await encolarPendientesAhora({ db: getFirestore(), encolar: encoladorCloudTasks(), ahora: new Date() });
+    const db = getFirestore();
+    await encolarPendientesAhora({
+      db,
+      encolar: encoladorCloudTasks(),
+      ahora: new Date(),
+      cambio: {
+        notificar: crearNotificador(db, enviarPushFcm()),
+        encolarReferencia: encoladorReferencias(),
+        conexion: async (red) => leerConexion(red, (await db.collection('connections').doc(red).get()).data()),
+      },
+    });
   },
 );

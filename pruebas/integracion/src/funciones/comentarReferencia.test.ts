@@ -46,6 +46,8 @@ function dependenciasCambio(conexion: Conexion) {
     notificar: async (id) => void avisos.push(id),
     encolarReferencia: async (tarea, id) => void encoladas.push({ tarea, id }),
     conexion: async () => conexion,
+    // El Principal de prueba se publica en AHORA (2030): con la hora real aún no sería visible.
+    ahora: () => AHORA,
   };
   return { deps, avisos, encoladas };
 }

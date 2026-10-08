@@ -62,6 +62,50 @@ function clasificarToken(r: RespuestaHttp): PlatformError | null {
 
 const autorizacion = (sesion: SesionProveedor) => ({ Authorization: `Bearer ${sesion.accessToken}` });
 
+export interface VideoYoutube {
+  id: string;
+  channelId: string;
+  title: string;
+  description: string;
+  privacy: 'public' | 'unlisted' | 'private';
+  publishAt?: Date; // publicación programada de un video privado
+  publishedAt?: Date;
+}
+
+interface RecursoVideo {
+  id?: string;
+  snippet?: { channelId?: string; title?: string; description?: string; publishedAt?: string };
+  status?: { privacyStatus?: string; publishAt?: string };
+}
+
+const fechaOpcional = (valor?: string) => (valor ? new Date(valor) : undefined);
+
+// Solo metadatos (videos.list): importar un Principal ya subido no descarga el video.
+export async function obtenerVideo(videoId: string, ctx: ContextoLectura): Promise<VideoYoutube | null> {
+  const parametros = new URLSearchParams({ part: 'snippet,status', id: videoId });
+  const r = await solicitar(
+    ctx.http,
+    `${API}/videos?${parametros.toString()}`,
+    { method: 'GET', headers: autorizacion(ctx.sesion) },
+    { red: RED, clasificar: clasificarGoogle },
+  );
+  const video = (r.json as { items?: RecursoVideo[] }).items?.[0];
+  if (!video?.id) return null;
+  const privacidad = video.status?.privacyStatus;
+  const resultado: VideoYoutube = {
+    id: video.id,
+    channelId: video.snippet?.channelId ?? '',
+    title: video.snippet?.title ?? '',
+    description: video.snippet?.description ?? '',
+    privacy: privacidad === 'public' || privacidad === 'unlisted' ? privacidad : 'private',
+  };
+  const publishAt = fechaOpcional(video.status?.publishAt);
+  const publishedAt = fechaOpcional(video.snippet?.publishedAt);
+  if (publishAt) resultado.publishAt = publishAt;
+  if (publishedAt) resultado.publishedAt = publishedAt;
+  return resultado;
+}
+
 interface RespuestaToken {
   access_token?: string;
   expires_in?: number;

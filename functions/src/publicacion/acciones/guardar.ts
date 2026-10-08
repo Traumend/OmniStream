@@ -1,10 +1,12 @@
 import {
   destinoNuevo,
   esEditable,
+  fechaBasePromocion,
   leerPublicacion,
   mensajeProblemas,
   normalizarHashtags,
   problemasDeJerarquia,
+  recalcularFechas,
   tipoDePublicacion,
   validarPublicacion,
   type Destino,
@@ -17,6 +19,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { leerContexto, leerPublicacionCompleta, refDestino, refPublicacion } from '../firestore';
 import type { DependenciasAccion } from './dependencias';
 import { programarPublicacion } from './programar';
+import { promocionInicial } from './promocion';
 
 const noEditable = () => new HttpsError('failed-precondition', 'Esta publicación ya no se puede editar.');
 
@@ -83,20 +86,30 @@ export async function guardarPublicacion(
     if (errores.length > 0) throw new HttpsError('failed-precondition', mensajeProblemas(errores));
   }
 
+  // Un Principal recibe su lista de promoción al crearse; si ya la tiene, sus fechas siguen a la nueva fecha.
+  const promocionNueva = kind === 'principal' ? await promocionInicial(db, datos.scheduledAt) : undefined;
+
   const quitados = await db.runTransaction(async (tx) => {
     const fresca = existente ? await leerPublicacionCompleta(db, ref.id, tx) : null;
     if (existente && (!fresca || !esEditable(fresca.destinos.map((d) => d.status)))) throw noEditable();
     const actuales = new Map<string, Destino>((fresca?.destinos ?? []).map((d) => [d.platform, d]));
+    const anterior = fresca?.publicacion.promotion?.items;
+    const items = anterior
+      ? recalcularFechas(anterior, fechaBasePromocion(datos, actuales.get('youtube')))
+      : promocionNueva;
+    const promocion = kind === 'principal' && items ? { promotion: { items } } : {};
 
     if (fresca) {
       tx.update(ref, {
         ...datos,
+        ...promocion,
         assetId: entrada.assetId ?? FieldValue.delete(),
         parentId: esHija ? entrada.parentId : FieldValue.delete(),
       });
     } else {
       tx.set(ref, {
         ...datos,
+        ...promocion,
         assetId: entrada.assetId ?? undefined,
         parentId: esHija ? entrada.parentId : undefined,
         status: 'borrador',

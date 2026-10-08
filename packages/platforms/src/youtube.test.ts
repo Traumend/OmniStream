@@ -2,7 +2,7 @@ import { CAMPOS_YOUTUBE_POR_DEFECTO, type DestinoEfectivo } from '@omnistream/co
 import { describe, expect, it } from 'vitest';
 import { fetchGrabado, type Intercambio } from './prueba/fetchGrabado';
 import type { ArchivoFuente, PublishContext, SesionProveedor } from './tipos';
-import { adaptadorYoutube, crearOAuthYoutube } from './youtube';
+import { adaptadorYoutube, crearOAuthYoutube, obtenerVideo } from './youtube';
 
 const ahora = new Date('2026-10-08T12:00:00Z');
 const TAMANO = 209_715_200; // 200 MiB
@@ -348,5 +348,54 @@ describe('lectura', () => {
       },
     ]);
     expect(await adaptadorYoutube.postComment('abcdefghijk', 'Hola', { http, sesion })).toEqual({ id: 'cmt1' });
+  });
+});
+
+describe('obtenerVideo', () => {
+  it('obtenerVideo lee snippet y status', async () => {
+    const http = fetchGrabado([
+      {
+        metodo: 'GET',
+        url: 'https://www.googleapis.com/youtube/v3/videos?part=snippet%2Cstatus&id=abcdefghijk',
+        revisar: ({ headers }) => expect(headers.get('authorization')).toBe('Bearer ya29'),
+        respuesta: {
+          status: 200,
+          json: {
+            items: [
+              {
+                id: 'abcdefghijk',
+                snippet: {
+                  channelId: 'UC123',
+                  title: 'La independencia',
+                  description: 'Un video largo',
+                  publishedAt: '2026-10-01T10:00:00Z',
+                },
+                status: { privacyStatus: 'private', publishAt: '2026-10-15T17:00:00Z' },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+    expect(await obtenerVideo('abcdefghijk', { http, sesion })).toEqual({
+      id: 'abcdefghijk',
+      channelId: 'UC123',
+      title: 'La independencia',
+      description: 'Un video largo',
+      privacy: 'private',
+      publishAt: new Date('2026-10-15T17:00:00Z'),
+      publishedAt: new Date('2026-10-01T10:00:00Z'),
+    });
+  });
+
+  it('un id inexistente devuelve null', async () => {
+    const http = fetchGrabado([
+      {
+        metodo: 'GET',
+        url: /videos\?part=snippet%2Cstatus&id=zzzzzzzzzzz$/,
+        respuesta: { status: 200, json: { items: [] } },
+      },
+    ]);
+    expect(await obtenerVideo('zzzzzzzzzzz', { http, sesion })).toBeNull();
   });
 });
