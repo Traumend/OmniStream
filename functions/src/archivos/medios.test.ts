@@ -18,9 +18,24 @@ beforeAll(async () => {
   directorio = await mkdtemp(join(tmpdir(), 'medios-'));
   rutaVideo = join(directorio, 'vertical.mp4');
   await promisify(execFile)(ffmpegPath as unknown as string, [
-    '-f', 'lavfi', '-i', 'testsrc=size=720x1280:rate=30',
-    '-f', 'lavfi', '-i', 'sine=frequency=440',
-    '-t', '3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-y', rutaVideo,
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc=size=720x1280:rate=30',
+    '-f',
+    'lavfi',
+    '-i',
+    'sine=frequency=440',
+    '-t',
+    '3',
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'aac',
+    '-y',
+    rutaVideo,
   ]);
 });
 

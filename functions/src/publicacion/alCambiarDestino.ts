@@ -1,9 +1,27 @@
-import { avisoDe, estadoPublicacion, leerDestino, type Destino, type Platform } from '@omnistream/core';
+import {
+  avisoDe,
+  estadoPublicacion,
+  idReferencia,
+  leerConexion,
+  leerDestino,
+  puedeComentarPorApi,
+  type Conexion,
+  type Destino,
+  type Platform,
+} from '@omnistream/core';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { REGION } from '../config';
+import { encoladorReferencias, type TareaReferencia } from './comentarReferencia';
 import { leerPublicacionCompleta, refDestino, refPublicacion } from './firestore';
 import { crearNotificador, enviarPushFcm, type Notificador } from './notificaciones';
+
+export interface DependenciasCambio {
+  notificar: Notificador;
+  encolarReferencia(tarea: TareaReferencia, id: string): Promise<void>;
+  conexion(red: Platform): Promise<Conexion>;
+}
 
 export interface CambioDestino {
   postId: string;
@@ -20,15 +38,34 @@ const claveOrdenada = (objeto: Record<string, unknown>) =>
       .map((k) => [k, objeto[k]]),
   );
 
-// Pasa la referencia de en_espera a pendiente; devuelve si la cambió (solo entonces se avisa).
-async function activarReferencia(db: Firestore, postId: string, red: Platform): Promise<boolean> {
+// Activa la referencia que esperaba la URL del Principal. Con permiso para comentar por API la deja en 'publicando'
+// y encola el comentario; si no, pasa a 'pendiente'. Devuelve si hay que avisar para hacerla a mano.
+async function activarReferencia(
+  db: Firestore,
+  postId: string,
+  red: Platform,
+  deps: DependenciasCambio,
+): Promise<boolean> {
+  const porApi = puedeComentarPorApi(await deps.conexion(red));
   const ref = refDestino(db, postId, red);
-  return db.runTransaction(async (tx) => {
+  const version = await db.runTransaction(async (tx) => {
     const actual = await tx.get(ref);
-    if (!actual.exists || leerDestino(actual.data()).parentRef.status !== 'en_espera') return false;
-    tx.update(ref, { 'parentRef.status': 'pendiente' });
-    return true;
+    if (!actual.exists) return null;
+    const destino = leerDestino(actual.data());
+    if (destino.parentRef.status !== 'en_espera') return null;
+    tx.update(ref, { 'parentRef.status': porApi ? 'publicando' : 'pendiente' });
+    return destino.scheduleVersion;
   });
+  if (version === null) return false;
+  if (!porApi) return true;
+  try {
+    await deps.encolarReferencia({ postId, platform: red }, idReferencia(postId, red, version));
+    return false;
+  } catch (error) {
+    logger.error('No se pudo encolar la referencia', { postId, red, error: String(error) });
+    await ref.update({ 'parentRef.status': 'pendiente' });
+    return true;
+  }
 }
 
 async function principalPublicado(db: Firestore, principalId: string): Promise<boolean> {
@@ -36,8 +73,9 @@ async function principalPublicado(db: Firestore, principalId: string): Promise<b
   return youtube.exists && leerDestino(youtube.data()).remote !== undefined;
 }
 
-export async function reaccionarACambio(db: Firestore, cambio: CambioDestino, notificar: Notificador): Promise<void> {
+export async function reaccionarACambio(db: Firestore, cambio: CambioDestino, deps: DependenciasCambio): Promise<void> {
   const { postId, platform, antes, despues, idEvento } = cambio;
+  const { notificar } = deps;
   const completa = await leerPublicacionCompleta(db, postId);
   if (!completa) return;
   const { publicacion, destinos } = completa;
@@ -66,7 +104,7 @@ export async function reaccionarACambio(db: Firestore, cambio: CambioDestino, no
       platform !== 'tiktok' &&
       despues.parentRef.status === 'en_espera' &&
       (await principalPublicado(db, publicacion.parentId)) &&
-      (await activarReferencia(db, postId, platform))
+      (await activarReferencia(db, postId, platform, deps))
     ) {
       await notificar(`${idEvento}-ref`, avisoDe('referencia', datos));
     }
@@ -80,7 +118,7 @@ export async function reaccionarACambio(db: Firestore, cambio: CambioDestino, no
           const destino = leerDestino(documento.data());
           if (destino.status !== 'publicada' || destino.platform === 'tiktok') continue;
           if (destino.parentRef.status !== 'en_espera') continue;
-          if (await activarReferencia(db, hija.id, destino.platform)) {
+          if (await activarReferencia(db, hija.id, destino.platform, deps)) {
             await notificar(
               `${idEvento}-${hija.id}-${destino.platform}`,
               avisoDe('referencia', {
@@ -111,7 +149,11 @@ export const alCambiarDestino = onDocumentWritten(
         despues,
         idEvento: evento.id,
       },
-      crearNotificador(db, enviarPushFcm()),
+      {
+        notificar: crearNotificador(db, enviarPushFcm()),
+        encolarReferencia: encoladorReferencias(),
+        conexion: async (red) => leerConexion(red, (await db.collection('connections').doc(red).get()).data()),
+      },
     );
   },
 );

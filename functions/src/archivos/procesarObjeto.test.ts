@@ -78,7 +78,12 @@ it('imagen: guarda dimensiones y un fotograma', async () => {
   await procesarObjeto({ name: 'originales/a1', contentType: 'image/png' }, deps);
   expect(deps.actualizarAsset).toHaveBeenLastCalledWith(
     'a1',
-    expect.objectContaining({ status: 'listo', width: 1200, height: 800, frames: { start: 'fotogramas/a1/start.jpg' } }),
+    expect.objectContaining({
+      status: 'listo',
+      width: 1200,
+      height: 800,
+      frames: { start: 'fotogramas/a1/start.jpg' },
+    }),
   );
 });
 

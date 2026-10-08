@@ -316,7 +316,7 @@ export async function ejecutarTarea(
   }
 }
 
-function dependenciasApi(): DependenciasApi {
+export function dependenciasApi(): DependenciasApi {
   const db = getFirestore();
   const sesiones: DependenciasSesion = {
     db,

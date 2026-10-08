@@ -18,7 +18,9 @@ it('extrae los datos de un video vertical con audio', () => {
 
 it('aplica la rotación de la matriz de visualización', () => {
   const r = analizarSalidaFfprobe({
-    streams: [{ ...video, width: 1920, height: 1080, side_data_list: [{ side_data_type: 'Display Matrix', rotation: -90 }] }],
+    streams: [
+      { ...video, width: 1920, height: 1080, side_data_list: [{ side_data_type: 'Display Matrix', rotation: -90 }] },
+    ],
     format: { duration: '5' },
   });
   expect(r).toMatchObject({ width: 1080, height: 1920, aspect: 0.5625, rotation: 270, hasAudio: false });

@@ -51,7 +51,7 @@ export async function desvincularHija(postId: string, deps: DependenciasAccion):
     if (completa.publicacion.kind !== 'hija') throw precondicion('Esta publicación no pertenece a un video principal.');
     tx.update(refPublicacion(db, postId), { kind: 'independiente', parentId: FieldValue.delete(), updatedAt: ahora });
     for (const destino of completa.destinos) {
-      if (destino.parentRef.status === 'en_espera' || destino.parentRef.status === 'pendiente') {
+      if (['en_espera', 'pendiente', 'publicando'].includes(destino.parentRef.status)) {
         tx.update(refDestino(db, postId, destino.platform), { 'parentRef.status': 'no_aplica' });
       }
     }

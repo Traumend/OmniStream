@@ -16,7 +16,11 @@ const opcionesCabeceras = (cabeceras?: string) => (cabeceras ? ['-headers', cabe
 const LIMITE_PROBAR_MS = 60_000;
 const LIMITE_FOTOGRAMA_MS = 120_000;
 
-export async function probar(url: string, cabeceras?: string, tiempoMaximoMs = LIMITE_PROBAR_MS): Promise<FfprobeSalida> {
+export async function probar(
+  url: string,
+  cabeceras?: string,
+  tiempoMaximoMs = LIMITE_PROBAR_MS,
+): Promise<FfprobeSalida> {
   const { stdout } = await ejecutar(
     ffprobe.path,
     ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', ...opcionesCabeceras(cabeceras), url],
@@ -32,16 +36,27 @@ export async function extraerFotograma(
   cabeceras?: string,
   tiempoMaximoMs = LIMITE_FOTOGRAMA_MS,
 ): Promise<void> {
-  await ejecutar(ffmpeg, [
-    '-v', 'error',
-    '-ss', String(segundo),
-    ...opcionesCabeceras(cabeceras),
-    '-i', url,
-    '-frames:v', '1',
-    '-vf', "scale='min(1280,iw)':-2",
-    '-q:v', '3',
-    '-y', destino,
-  ], { timeout: tiempoMaximoMs, killSignal: 'SIGKILL' });
+  await ejecutar(
+    ffmpeg,
+    [
+      '-v',
+      'error',
+      '-ss',
+      String(segundo),
+      ...opcionesCabeceras(cabeceras),
+      '-i',
+      url,
+      '-frames:v',
+      '1',
+      '-vf',
+      "scale='min(1280,iw)':-2",
+      '-q:v',
+      '3',
+      '-y',
+      destino,
+    ],
+    { timeout: tiempoMaximoMs, killSignal: 'SIGKILL' },
+  );
 }
 
 const ROTACION_EXIF: Record<number, number> = { 3: 180, 5: 90, 6: 90, 7: 270, 8: 270 };
