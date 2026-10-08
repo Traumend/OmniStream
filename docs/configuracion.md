@@ -1,6 +1,6 @@
 # Guía de configuración de OmniStream
 
-Esta guía explica cómo ejecutar OmniStream en tu equipo y cómo preparar el proyecto de Firebase para producción. Cada fase agrega sus propios pasos; aquí están los de la fase 1 y la lista de lo que vendrá.
+Esta guía explica cómo ejecutar OmniStream en tu equipo y cómo preparar el proyecto de Firebase para producción. Cada fase agrega sus propios pasos; aquí están los de las fases 1 y 2A y la lista de lo que vendrá.
 
 ## 1. Ejecutar en local
 
@@ -26,6 +26,8 @@ pnpm --filter @omnistream/web dev
 
 Abre `http://localhost:3000`. En la ventana de inicio de sesión del emulador, elige "Add new account" y usa el correo `propietario@omnistream.test`; cualquier otro correo será rechazado. Ese correo de prueba está definido en `functions/.env.demo-omnistream`.
 
+El emulador de Cloud Tasks (puerto 9499) arranca junto con el de funciones. En local las tareas se entregan de inmediato, sin respetar su hora: la de una publicación programada a futuro termina como "anticipada" sin hacer nada, y las tareas programadas (`encolarPendientes`, `limpiarRetencion`) no corren solas. Para probar el flujo completo en local, usa "Publicar ahora"; en producción Cloud Tasks entrega cada tarea a su hora. Firebase Cloud Messaging no tiene emulador, así que en local Ajustes > Notificaciones no puede activar los avisos push; los avisos sí se registran en la colección `notifications`.
+
 `scripts/firebase.cjs` lanza firebase-tools respetando `NO_PROXY`. Solo importa si tu red usa un proxy: sin él, firebase-tools enviaría el tráfico entre emuladores por el proxy y fallaría. Sin proxy, funciona igual que el comando `firebase`.
 
 ### Pruebas
@@ -33,7 +35,7 @@ Abre `http://localhost:3000`. En la ventana de inicio de sesión del emulador, e
 | Comando | Qué verifica |
 |---|---|
 | `pnpm test` | Pruebas unitarias de `core`, `functions` y `web` |
-| `pnpm test:integracion` | Reglas de seguridad, bloqueo de acceso y procesamiento de archivos contra los emuladores |
+| `pnpm test:integracion` | Reglas de seguridad, bloqueo de acceso, procesamiento de archivos y publicación contra los emuladores |
 | `pnpm test:e2e` | Flujos completos en el navegador contra los emuladores |
 | `pnpm lint` y `pnpm typecheck` | Estilo y tipos |
 
@@ -64,12 +66,29 @@ Sigue los pasos en orden. Los nombres de los menús son los de la consola de Fir
    - Sube un video y confirma que muestra sus datos técnicos y 3 fotogramas.
    - Prueba de reanudación (criterio de la fase 1): sube un video de unos 2 GB, corta la red durante un minuto a mitad de la subida y confirma que continúa al volver la conexión.
 
-## 3. Próximas fases
+## 3. Producción: fase 2A (publicación asistida)
+
+Parte de un proyecto que ya cumple la fase 1. Sigue los pasos en orden.
+
+1. **APIs.** En Google Cloud > APIs y servicios > Biblioteca, habilita Cloud Tasks API, Cloud Scheduler API y Firebase Cloud Messaging API.
+2. **IAM.** En Google Cloud > IAM:
+   - A la cuenta de servicio de las funciones (`NUMERO_DE_PROYECTO-compute@developer.gserviceaccount.com`), agrega los roles "Encolador de Cloud Tasks", "Usuario de cuenta de servicio" y "Administrador de la API de Firebase Cloud Messaging".
+   - A la cuenta de servicio de despliegues (la del secreto `FIREBASE_SERVICE_ACCOUNT`), agrega "Administrador de Cloud Tasks" y "Administrador de Cloud Scheduler".
+3. **Llave VAPID.** En Firebase > Configuración del proyecto > Cloud Messaging > Configuración web > Certificados de push web, elige "Generar par de claves". Copia la clave pública y agrégala en Vercel como variable de entorno `NEXT_PUBLIC_FIREBASE_VAPID_KEY`.
+4. **Contacto.** En Vercel, agrega `NEXT_PUBLIC_CORREO_CONTACTO` con el correo que debe aparecer en `/privacidad`.
+5. **Despliegue.** Al actualizar `main`, el flujo "Desplegar" publica funciones, reglas e índices, y crea la cola de `publicarDestino` y las tareas programadas de `encolarPendientes` y `limpiarRetencion`. En Firestore > Índices, espera a que los dos índices de `targets` (grupo de colecciones) estén "Habilitado" antes de usar `/pendientes`; mientras se construyen, la lista queda vacía. Vuelve a desplegar en Vercel para que tome las variables nuevas.
+6. **Notificaciones.** En cada dispositivo, abre Ajustes > Notificaciones y elige "Activar en este dispositivo". En iPhone (iOS 16.4 o posterior): abre el sitio en Safari, Compartir > Agregar a inicio, abre OmniStream desde el ícono y actívalas ahí; Safari fuera de la pantalla de inicio no admite avisos push.
+7. **Verificación (criterios de la fase 2A).**
+   - Programa una publicación a las 4 redes para dentro de unos minutos; al llegar la hora, confirma que llega el aviso y que `/pendientes` muestra un paquete por red. Publica uno a mano, pega su URL y confirma que pasa a "Publicada".
+   - Mueve una publicación programada en el calendario y confirma que, a la nueva hora, llega un solo aviso por red.
+   - Publica una Hija antes que su Principal: al marcar publicado el YouTube del Principal, la referencia de la Hija pasa a pendiente y aparece en `/pendientes`.
+
+## 4. Próximas fases
 
 | Elemento | Fase |
 |---|---|
-| App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2 |
-| App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2 |
-| App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2 |
+| App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2B |
+| App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2B |
+| App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2B |
 | Llaves de Anthropic y OpenAI | 4 |
 | Llave pública de Google para YouTube (tendencias) | 6 |

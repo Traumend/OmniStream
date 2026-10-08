@@ -23,3 +23,15 @@ export async function entrarComo(page: Page, email: string): Promise<void> {
   await ventana.locator('#display-name-input').fill('Propietario');
   await ventana.locator('#sign-in').click();
 }
+
+// Sube un archivo desde la Biblioteca y espera a que su tarjeta (la más reciente con ese nombre) quede "Listo".
+export async function subirArchivo(page: Page, ruta: string, nombre: string): Promise<void> {
+  await page.goto('/biblioteca');
+  const tarjetas = page.getByRole('article', { name: nombre });
+  await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible();
+  await expect(page.getByText('Cargando archivos…')).toHaveCount(0);
+  const antes = await tarjetas.count();
+  await page.locator('input[type=file]').setInputFiles(ruta);
+  await expect(tarjetas).toHaveCount(antes + 1, { timeout: 60_000 });
+  await expect(tarjetas.first().getByText('Listo')).toBeVisible({ timeout: 90_000 });
+}

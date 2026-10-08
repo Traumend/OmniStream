@@ -4,6 +4,7 @@ Herramienta personal para programar y publicar contenido en Facebook, Instagram,
 
 - Especificación: [docs/superpowers/specs/2026-10-07-omnistream-design.md](docs/superpowers/specs/2026-10-07-omnistream-design.md)
 - Plan de la fase 1: [docs/superpowers/plans/2026-10-07-fase-1-fundacion.md](docs/superpowers/plans/2026-10-07-fase-1-fundacion.md)
+- Plan de la fase 2A: [docs/superpowers/plans/2026-10-07-fase-2a-publicacion-asistida.md](docs/superpowers/plans/2026-10-07-fase-2a-publicacion-asistida.md)
 - Configuración y ejecución local: [docs/configuracion.md](docs/configuracion.md)
 
 ## Estructura
@@ -11,7 +12,7 @@ Herramienta personal para programar y publicar contenido en Facebook, Instagram,
 | Carpeta | Contenido |
 |---|---|
 | `apps/web` | Aplicación Next.js (publicada en Vercel) |
-| `functions` | Cloud Functions: acceso por correo y procesamiento de archivos |
+| `functions` | Cloud Functions: acceso, procesamiento de archivos y publicación |
 | `packages/core` | Reglas de dominio compartidas |
 | `pruebas/integracion` | Pruebas contra los emuladores de Firebase |
 
