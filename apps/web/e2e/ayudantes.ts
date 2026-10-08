@@ -1,5 +1,15 @@
 import { expect, type Page } from '@playwright/test';
 
+const IFRAME_DE_AUTH = '/emulator/auth/iframe';
+
+// La ventana del emulador entrega el resultado al iframe de Auth de la página que la abrió; si ese iframe
+// aún no cargó (pasa en frío), el resultado se pierde ("No matching frame") y el inicio de sesión no ocurre.
+async function esperarIframeDeAuth(page: Page): Promise<void> {
+  const marco = () => page.frames().find((f) => f.url().includes(IFRAME_DE_AUTH));
+  await expect.poll(() => marco() !== undefined, { timeout: 60_000 }).toBe(true);
+  await marco()?.waitForLoadState('load');
+}
+
 // Completa la ventana de inicio de sesión del emulador de Auth con una cuenta de Google simulada.
 // La ventana asigna sus eventos de clic después de cargar un script externo, así que se espera
 // a que termine de cargar y se reintenta el clic hasta que aparezca el formulario.
@@ -9,19 +19,23 @@ export async function entrarComo(page: Page, email: string): Promise<void> {
     page.getByRole('button', { name: 'Entrar con Google' }).click(),
   ]);
   await ventana.waitForLoadState('load');
+  await esperarIframeDeAuth(page);
+  const cerrada = ventana.waitForEvent('close', { timeout: 60_000 });
   const existente = ventana.locator('li.js-reuse-account', { hasText: email }).first();
   if ((await existente.count()) > 0) {
     await existente.click();
-    return;
+  } else {
+    const correo = ventana.locator('#email-input');
+    await expect(async () => {
+      if (!(await correo.isVisible())) await ventana.locator('#add-account-button button').click();
+      await expect(correo).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 60_000 });
+    await correo.fill(email);
+    await ventana.locator('#display-name-input').fill('Propietario');
+    await ventana.locator('#sign-in').click();
   }
-  const correo = ventana.locator('#email-input');
-  await expect(async () => {
-    if (!(await correo.isVisible())) await ventana.locator('#add-account-button button').click();
-    await expect(correo).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 60_000 });
-  await correo.fill(email);
-  await ventana.locator('#display-name-input').fill('Propietario');
-  await ventana.locator('#sign-in').click();
+  // La app cierra la ventana al recibir el resultado, también cuando la función de bloqueo lo rechaza.
+  await cerrada;
 }
 
 // Sube un archivo desde la Biblioteca y espera a que su tarjeta (la más reciente con ese nombre) quede "Listo".
