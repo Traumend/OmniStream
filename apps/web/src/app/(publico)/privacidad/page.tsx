@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/marca/Logo';
+import { AvisoBorrado } from '@/components/privacidad/AvisoBorrado';
 import { Meandro } from '@/components/marca/Meandro';
 
 export const metadata: Metadata = { title: 'Política de privacidad · OmniStream' };
@@ -24,7 +25,13 @@ function Enlace({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-export default function Privacidad() {
+export default async function Privacidad({
+  searchParams,
+}: {
+  searchParams: Promise<{ [clave: string]: string | string[] | undefined }>;
+}) {
+  const { borrado } = await searchParams;
+  const codigo = typeof borrado === 'string' ? borrado : undefined;
   const contacto = CONTACTO ? (
     <a href={`mailto:${CONTACTO}`} className="text-oro-profundo underline underline-offset-2">
       {CONTACTO}
@@ -104,6 +111,7 @@ export default function Privacidad() {
       </Seccion>
 
       <Seccion id="borrado-de-datos" titulo="Borrado de datos">
+        {codigo && <AvisoBorrado codigo={codigo} />}
         <p>Para borrar los datos obtenidos de una red social:</p>
         <ul className="list-disc space-y-2 pl-6">
           <li>

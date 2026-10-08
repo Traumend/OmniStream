@@ -24,8 +24,9 @@ import { FieldValue, getFirestore, type DocumentReference, type Firestore } from
 import { getStorage } from 'firebase-admin/storage';
 import { logger } from 'firebase-functions';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
-import { claveCifrado, REGION, SECRETOS_CONECTORES } from '../config';
+import { claveCifrado, REGION, SECRETOS_CONECTORES, urlPublica } from '../config';
 import { crearCifrador } from '../conexiones/cifrado';
+import { firmarTokenMedia } from '../conexiones/media';
 import { ADAPTADORES, proveedoresReales } from '../conexiones/proveedores';
 import { marcarExpirada, sesionVigente, type DependenciasSesion } from '../conexiones/sesiones';
 import { encoladorCloudTasks, type TareaPublicacion } from './cola';
@@ -43,6 +44,7 @@ interface ContextoTarea {
 }
 
 const VENTANA_AMBIGUO_MS = 30 * 60 * 1000;
+const HORA_MS = 60 * 60 * 1000;
 
 type RegistroIntento = Pick<Intento, 'stage' | 'result' | 'error'>;
 
@@ -328,8 +330,15 @@ export function dependenciasApi(): DependenciasApi {
   return {
     adaptador: (red) => ADAPTADORES[red],
     sesion: (red) => sesionVigente(red, sesiones),
-    // urlMedia llega con /api/media/ (Tarea 13); mientras tanto TikTok imagen por API no se usa.
-    fuentes: (asset, destino) => fuentesDePublicacion(getStorage().bucket(), asset, destino),
+    // TikTok descarga las imágenes desde el dominio verificado de la app, con un enlace de 1 hora.
+    fuentes: (asset, destino) =>
+      fuentesDePublicacion(
+        getStorage().bucket(),
+        asset,
+        destino,
+        (ruta) =>
+          `${urlPublica.value()}/api/media/${firmarTokenMedia(claveCifrado.value(), ruta, Date.now() + HORA_MS)}`,
+      ),
     marcarExpirada: (red, error) => marcarExpirada(proveedorDe(red), error, sesiones),
     encolar: encoladorCloudTasks(),
     http: fetch,

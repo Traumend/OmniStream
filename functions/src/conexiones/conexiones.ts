@@ -13,7 +13,7 @@ import {
   type RespuestaConexiones,
 } from '@omnistream/core';
 import { consultarCreador, esPlatformError, type Http } from '@omnistream/platforms';
-import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { claveCifrado, REGION, SECRETOS_CONECTORES, urlPublica } from '../config';
@@ -44,15 +44,15 @@ async function iniciar(proveedor: Proveedor, deps: DependenciasConexiones): Prom
   return { url: deps.proveedores[proveedor].buildAuthUrl({ state, redirectUri: redireccionOAuth(deps.urlPublica) }) };
 }
 
-async function desconectar(proveedor: Proveedor, deps: DependenciasConexiones): Promise<RespuestaConexiones> {
-  await borrarSesion(deps.db, proveedor);
+// Borra la sesión y deja las redes del proveedor sin conectar y en modo manual.
+export async function desconectarProveedor(db: Firestore, proveedor: Proveedor): Promise<void> {
+  await borrarSesion(db, proveedor);
   for (const platform of REDES_DE_PROVEEDOR[proveedor]) {
-    await deps.db
+    await db
       .collection('connections')
       .doc(platform)
       .set({ platform, authStatus: 'sin_conectar', publishMode: 'manual', readEnabled: false, scopes: [] });
   }
-  return {};
 }
 
 async function configurar(
@@ -100,7 +100,8 @@ export async function despacharConexion(
     case 'iniciar':
       return iniciar(accion.proveedor, deps);
     case 'desconectar':
-      return desconectar(accion.proveedor, deps);
+      await desconectarProveedor(deps.db, accion.proveedor);
+      return {};
     case 'configurar':
       return configurar(accion, deps);
     case 'infoCreadorTiktok':
