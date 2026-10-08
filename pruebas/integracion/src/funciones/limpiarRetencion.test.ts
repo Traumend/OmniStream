@@ -1,7 +1,9 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import { limpiarRetencionAhora } from '@omnistream/functions/src/publicacion/limpiarRetencion';
 import { beforeAll, expect, it } from 'vitest';
 import { adminDemo } from '../admin';
 import { crearAssetListo, sembrarPublicacion } from '../datos';
+import { esperarHasta } from '../esperar';
 
 const { db, bucket } = adminDemo('limpiarRetencion');
 const ahora = new Date();
@@ -15,6 +17,12 @@ async function archivoConObjetos(cambios: Parameters<typeof crearAssetListo>[1] 
   const id = await crearAssetListo(db, cambios);
   await bucket.file(`originales/${id}`).save(bytes, { contentType: 'video/mp4' });
   await bucket.file(`fotogramas/${id}/start.jpg`).save(bytes, { contentType: 'image/jpeg' });
+  // Subir el original dispara procesarArchivo, que marca fallido este archivo falso; se espera y se restaura.
+  await esperarHasta(
+    () => asset(id),
+    (d) => d.status === 'fallido',
+  );
+  await db.doc(`assets/${id}`).update({ status: 'listo', error: FieldValue.delete() });
   return id;
 }
 
