@@ -12,7 +12,7 @@ import { crearNotificador } from '@omnistream/functions/src/publicacion/notifica
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { adminDemo } from '../admin';
 import { crearAssetListo, sembrarPublicacion } from '../datos';
-import { esperarHasta } from '../esperar';
+import { esperarHasta, pausa } from '../esperar';
 
 const { db, bucket } = adminDemo('promocion');
 const DIA = 86_400_000;
@@ -101,8 +101,11 @@ it('un pendiente vencido avisa una sola vez', async () => {
   const ahora = en(1);
   expect(await avisarPromocion(db, notificar, ahora)).toBeGreaterThanOrEqual(1);
   await avisarPromocion(db, notificar, ahora);
-  const aviso = await db.doc(`notifications/promocion-${principal}-i1`).get();
-  expect(aviso.data()).toMatchObject({
+  const avisosDelPrincipal = await db
+    .collection('notifications')
+    .where('enlace', '==', `/publicaciones/${principal}`)
+    .get();
+  expect(avisosDelPrincipal.docs[0]?.data()).toMatchObject({
     tipo: 'promocion',
     titulo: 'Promoción pendiente',
     enlace: `/publicaciones/${principal}`,
@@ -195,4 +198,39 @@ it('guardar un Principal nuevo le crea la lista de promoción', async () => {
   expect(items.map((i) => [i.title, i.dueAt])).toEqual(
     PLANTILLA_PROMOCION_POR_DEFECTO.map((p) => [p.title, en(p.offsetDays)]),
   );
+});
+
+it('un pendiente cuya fecha cambió vuelve a avisar', async () => {
+  const items = crearPromocion([{ type: 'exposicion', title: `Expo ${randomUUID()}`, offsetDays: 0 }], BASE, ids());
+  const principal = await sembrarPrincipal(items);
+  await avisarPromocion(db, notificar, en(1));
+  await db.doc(`posts/${principal}/targets/youtube`).update({ scheduledAt: en(2), scheduleVersion: 2 });
+  await esperarHasta(
+    () => leerItems(principal),
+    (i) => i[0]?.notifiedAt === undefined && i[0]?.dueAt?.getTime() === en(2).getTime(),
+  );
+  await avisarPromocion(db, notificar, en(3));
+  const avisos = await db.collection('notifications').where('enlace', '==', `/publicaciones/${principal}`).get();
+  expect(avisos.size).toBe(2);
+  expect((await leerItems(principal))[0]?.notifiedAt).toEqual(en(3));
+});
+
+it('con retención 0 cancelar no borra el original', async () => {
+  await ajustes.set({ retentionDays: 0 }, { merge: true });
+  const propio = await crearAssetListo(db);
+  await bucket.file(`originales/${propio}`).save(Buffer.from('video'));
+  const postId = await sembrarPublicacion(db, {
+    publicacion: { assetId: propio },
+    destinos: [{ platform: 'tiktok', format: 'tiktok', status: 'programada', scheduleVersion: 1 }],
+  });
+  await db.doc(`posts/${postId}/targets/tiktok`).update({ status: 'cancelada', statusChangedAt: new Date() });
+  await esperarHasta(
+    async () => (await db.doc(`posts/${postId}`).get()).get('targetStatus.tiktok'),
+    (estado) => estado === 'cancelada',
+  );
+  await pausa(2_000);
+  // Guardar el original dispara procesarArchivo, que cambia su estado: aquí solo importa que no se purgó.
+  expect((await db.doc(`assets/${propio}`).get()).get('status')).not.toBe('purgado');
+  expect((await bucket.file(`originales/${propio}`).exists())[0]).toBe(true);
+  await ajustes.set({ retentionDays: 7 }, { merge: true });
 });

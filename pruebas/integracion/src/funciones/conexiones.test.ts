@@ -156,13 +156,15 @@ it('un error del proveedor vuelve con su mensaje', async () => {
   );
 });
 
-it('Meta sin Instagram deja Instagram con error', async () => {
+it('Meta sin Instagram deja Instagram con error y en manual', async () => {
   const deps = dependencias({ meta: async () => resultadoMeta(false) });
+  await db.doc('connections/instagram').set({ platform: 'instagram', authStatus: 'conectada', publishMode: 'api' });
   const state = await iniciar('meta', deps);
   await completarConexion({ state, code: 'c1' }, deps);
   expect((await conexion('facebook'))?.authStatus).toBe('conectada');
   expect(await conexion('instagram')).toMatchObject({
     authStatus: 'error',
+    publishMode: 'manual',
     lastError: { code: 'sin_instagram', message: 'La página no tiene una cuenta profesional de Instagram vinculada.' },
   });
 });

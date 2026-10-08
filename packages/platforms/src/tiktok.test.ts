@@ -245,15 +245,65 @@ describe('video', () => {
     });
   });
 
-  it('la URL de subida vencida reinicia desde inicio', async () => {
-    const c = ctx([{ metodo: 'PUT', url: 'https://upload.tiktok.test/u', respuesta: { status: 403 } }]);
-    expect(
-      await adaptadorTiktok.publishStep(
-        video,
-        { stage: 'subiendo', data: { publishId: 'pub1', uploadUrl: 'https://upload.tiktok.test/u', parte: 1 } },
-        c,
-      ),
-    ).toEqual({ kind: 'continue', checkpoint: { stage: 'inicio', data: {} } });
+  const SUBIDA = { publishId: 'pub1', uploadUrl: 'https://upload.tiktok.test/u' };
+  const estadoSubida = (data: object) => ({
+    metodo: 'POST',
+    url: `${API}/post/publish/status/fetch/`,
+    revisar: ({ cuerpo }: { cuerpo: unknown }) => expect(JSON.parse(String(cuerpo))).toEqual({ publish_id: 'pub1' }),
+    respuesta: ok(data),
+  });
+
+  it('la URL de subida vencida con la subida incompleta reinicia desde inicio', async () => {
+    const c = ctx([
+      { metodo: 'PUT', url: 'https://upload.tiktok.test/u', respuesta: { status: 403 } },
+      estadoSubida({ status: 'PROCESSING_UPLOAD', uploaded_bytes: 33_554_432 }),
+    ]);
+    expect(await adaptadorTiktok.publishStep(video, { stage: 'subiendo', data: { ...SUBIDA, parte: 1 } }, c)).toEqual({
+      kind: 'continue',
+      checkpoint: { stage: 'inicio', data: {} },
+    });
+  });
+
+  it('una subida ya completa no se reinicia ante 416', async () => {
+    const c = ctx([
+      { metodo: 'PUT', url: 'https://upload.tiktok.test/u', respuesta: { status: 416 } },
+      estadoSubida({ status: 'PROCESSING_DOWNLOAD', uploaded_bytes: TAMANO }),
+    ]);
+    expect(await adaptadorTiktok.publishStep(video, { stage: 'subiendo', data: { ...SUBIDA, parte: 1 } }, c)).toEqual({
+      kind: 'continue',
+      checkpoint: { stage: 'estado', data: { publishId: 'pub1', consultas: 0 } },
+      delaySec: 10,
+    });
+  });
+
+  it('al reanudar con la subida completa pasa a estado sin volver a subir', async () => {
+    const c = ctx([estadoSubida({ status: 'PROCESSING_UPLOAD', uploaded_bytes: TAMANO })], { reanudando: true });
+    expect(await adaptadorTiktok.publishStep(video, { stage: 'subiendo', data: { ...SUBIDA, parte: 1 } }, c)).toEqual({
+      kind: 'continue',
+      checkpoint: { stage: 'estado', data: { publishId: 'pub1', consultas: 0 } },
+      delaySec: 10,
+    });
+  });
+
+  it('al reanudar con la subida incompleta sigue con su parte', async () => {
+    const c = ctx(
+      [
+        estadoSubida({ status: 'PROCESSING_UPLOAD', uploaded_bytes: 33_554_432 }),
+        { metodo: 'PUT', url: 'https://upload.tiktok.test/u', respuesta: { status: 201 } },
+      ],
+      { reanudando: true },
+    );
+    expect(await adaptadorTiktok.publishStep(video, { stage: 'subiendo', data: { ...SUBIDA, parte: 1 } }, c)).toEqual({
+      kind: 'continue',
+      checkpoint: { stage: 'estado', data: { publishId: 'pub1', consultas: 0 } },
+      delaySec: 10,
+    });
+  });
+
+  it('el último trozo sin respuesta es ambiguo', async () => {
+    const c = ctx([{ metodo: 'PUT', url: 'https://upload.tiktok.test/u', respuesta: 'sin_respuesta' }]);
+    const r = await adaptadorTiktok.publishStep(video, { stage: 'subiendo', data: { ...SUBIDA, parte: 1 } }, c);
+    expect(r).toMatchObject({ kind: 'error', error: { kind: 'ambiguo' } });
   });
 
   const estado = (data: object) => ({ metodo: 'POST', url: `${API}/post/publish/status/fetch/`, respuesta: ok(data) });
@@ -298,6 +348,22 @@ describe('video', () => {
 });
 
 describe('foto', () => {
+  it('una foto sin respuesta al crearse no se repite: queda para revisar', async () => {
+    const foto: DestinoEfectivo = { ...video, format: 'imagen' };
+    const c = ctx([{ metodo: 'POST', url: `${API}/post/publish/content/init/`, respuesta: 'sin_respuesta' }], {
+      urlMedia: async () => 'https://app.test/api/media/tok',
+    });
+    const r = await adaptadorTiktok.publishStep(foto, { stage: 'inicio', data: {} }, c);
+    expect(r).toMatchObject({
+      kind: 'error',
+      error: {
+        kind: 'definitivo',
+        code: 'tiktok_sin_confirmar',
+        message: 'TikTok no confirmó la publicación de la foto. Revisa tu perfil antes de reintentar.',
+      },
+    });
+  });
+
   it('publica una foto por PULL_FROM_URL con urlMedia', async () => {
     const foto: DestinoEfectivo = { ...video, format: 'imagen', titulo: 'x'.repeat(100) };
     const c = ctx(

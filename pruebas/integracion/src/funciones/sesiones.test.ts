@@ -168,3 +168,25 @@ it('un error temporal no cambia la conexión', async () => {
   expect(datos?.lastError).toBeUndefined();
   expect(await avisosDeConexion()).toBe(0);
 });
+
+it('la renovación no reconecta una red que quedó con error', async () => {
+  const ahora = new Date('2030-01-07T03:00:00Z');
+  await conectar('facebook');
+  await conexion('instagram').set({
+    platform: 'instagram',
+    authStatus: 'error',
+    publishMode: 'manual',
+    scopes: [],
+    lastError: { code: 'sin_instagram', message: 'La página no tiene una cuenta profesional de Instagram vinculada.' },
+  });
+  await guardar('meta', { accessToken: 'pagina', datos: { pageId: 'p1' } });
+  const deps = dependencias(ahora, { meta: async (s) => s });
+
+  expect(await renovarSesionesAhora(deps)).toEqual({ renovadas: 1, vencidas: 0 });
+
+  expect((await conexion('facebook').get()).get('authStatus')).toBe('conectada');
+  expect((await conexion('instagram').get()).data()).toMatchObject({
+    authStatus: 'error',
+    lastError: { code: 'sin_instagram' },
+  });
+});

@@ -103,7 +103,8 @@ export async function avisarPromocion(db: Firestore, notificar: Notificador, aho
     for (const item of vencidos) {
       try {
         await notificar(
-          `promocion-${publicacion.id}-${item.id}`,
+          // La fecha va en el id: un pendiente que cambió de fecha vuelve a avisar una vez.
+          `promocion-${publicacion.id}-${item.id}-${item.dueAt?.getTime() ?? 0}`,
           avisoPromocion({ postId: publicacion.id, tituloPrincipal: publicacion.title, item }),
         );
         await db.runTransaction(async (tx) => {

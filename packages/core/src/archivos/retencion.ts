@@ -38,6 +38,11 @@ export function calcularPurga(entrada: {
     const terminales = entrada.usos.map((uso) => terminalDesde(uso, entrada.ahora));
     if (terminales.some((t) => t === null)) return null;
     fecha = sumarDias((terminales as Date[]).reduce(mayor), entrada.retentionDays);
+    // Un archivo que no llegó a publicarse (todo cancelado o fallido) se conserva como uno sin uso: cancelar no
+    // borra el video aunque la retención sea de 0 días (D17 borra lo ya publicado).
+    if (!entrada.usos.some((uso) => uso.status === 'publicada')) {
+      fecha = mayor(fecha, sumarDias(entrada.createdAt, DIAS_SIN_USO));
+    }
   }
   return entrada.retainUntil ? mayor(fecha, entrada.retainUntil) : fecha;
 }

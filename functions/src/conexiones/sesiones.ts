@@ -35,16 +35,19 @@ export function vencimientoDeConexion(proveedor: Proveedor, sesion: SesionProvee
 }
 
 // Actualiza las redes del proveedor que están conectadas (o vencidas); devuelve cuáles cambió.
+// Con `soloConectables`, omite además las redes con error (Meta sin Instagram): renovar el acceso no las arregla.
 async function actualizarRedes(
   db: Firestore,
   proveedor: Proveedor,
   campos: UpdateData<FirebaseFirestore.DocumentData>,
+  soloConectables = false,
 ): Promise<Platform[]> {
   const cambiadas: Platform[] = [];
   for (const red of REDES_DE_PROVEEDOR[proveedor]) {
     const ref = db.collection('connections').doc(red);
     const doc = await ref.get();
-    if (!doc.exists || doc.get('authStatus') === 'sin_conectar') continue;
+    const estado = doc.get('authStatus');
+    if (!doc.exists || estado === 'sin_conectar' || (soloConectables && estado === 'error')) continue;
     await ref.update(campos);
     cambiadas.push(red);
   }
@@ -102,11 +105,16 @@ export async function renovarSesionesAhora(deps: DependenciasSesion): Promise<{ 
       const sesion = await leerSesion(deps.db, deps.cifrador, proveedor);
       if (!sesion) continue;
       const nueva = await renovar(proveedor, sesion, deps);
-      await actualizarRedes(deps.db, proveedor, {
-        authStatus: 'conectada',
-        tokenExpiresAt: vencimientoDeConexion(proveedor, nueva) ?? FieldValue.delete(),
-        lastError: FieldValue.delete(),
-      });
+      await actualizarRedes(
+        deps.db,
+        proveedor,
+        {
+          authStatus: 'conectada',
+          tokenExpiresAt: vencimientoDeConexion(proveedor, nueva) ?? FieldValue.delete(),
+          lastError: FieldValue.delete(),
+        },
+        true,
+      );
       renovadas++;
     } catch (error) {
       if (esPlatformError(error) && error.kind === 'auth') {

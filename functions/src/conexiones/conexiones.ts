@@ -151,6 +151,7 @@ export async function completarConexion(query: Record<string, unknown>, deps: De
             {
               platform,
               authStatus: 'error',
+              publishMode: 'manual',
               lastError: {
                 code: 'sin_instagram',
                 message: 'La página no tiene una cuenta profesional de Instagram vinculada.',

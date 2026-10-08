@@ -61,3 +61,15 @@ it('con 0 días de retención se purga en cuanto el último destino queda termin
     }),
   ).toEqual(hace(1));
 });
+
+it('si ningún uso se publicó, el archivo se conserva como sin uso', () => {
+  const creado = hace(5);
+  expect(
+    calcularPurga({
+      ...base,
+      createdAt: creado,
+      retentionDays: 0,
+      usos: [{ status: 'cancelada', statusChangedAt: hace(1) }],
+    }),
+  ).toEqual(new Date(creado.getTime() + 30 * 86_400_000));
+});

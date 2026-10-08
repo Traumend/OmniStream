@@ -242,11 +242,29 @@ function infoPublicacion(target: DestinoEfectivo) {
   };
 }
 
+// Crear la foto la publica de inmediato (PULL_FROM_URL + DIRECT_POST). Sin respuesta no se sabe si quedó publicada
+// y TikTok no lista lo privado, así que repetirla podría duplicarla: queda fallida para que el titular revise.
+async function iniciarFoto(ctx: PublishContext, cuerpo: unknown): Promise<{ publish_id?: string }> {
+  try {
+    return await api<{ publish_id?: string }>(ctx.http, ctx.sesion, 'post/publish/content/init/', cuerpo, {
+      final: true,
+    });
+  } catch (error) {
+    if (esPlatformError(error) && error.kind === 'ambiguo')
+      throw new PlatformError(
+        'definitivo',
+        'tiktok_sin_confirmar',
+        'TikTok no confirmó la publicación de la foto. Revisa tu perfil antes de reintentar.',
+      );
+    throw error;
+  }
+}
+
 async function iniciar(target: DestinoEfectivo, ctx: PublishContext): Promise<StepResult> {
   const base = infoPublicacion(target);
   if (target.format === 'imagen') {
     const url = ctx.urlMedia ? await ctx.urlMedia() : await ctx.archivo.urlFirmada();
-    const r = await api<{ publish_id?: string }>(ctx.http, ctx.sesion, 'post/publish/content/init/', {
+    const r = await iniciarFoto(ctx, {
       post_info: {
         title: target.titulo.slice(0, 90),
         description: target.texto,
@@ -284,11 +302,29 @@ async function iniciar(target: DestinoEfectivo, ctx: PublishContext): Promise<St
   return continuar('subiendo', { publishId: r.publish_id, uploadUrl: r.upload_url, parte: 0 });
 }
 
+const PASADO_DE_SUBIDA = new Set(['PROCESSING_DOWNLOAD', 'PUBLISH_COMPLETE', 'SEND_TO_USER_INBOX']);
+
+// TikTok publica en cuanto recibe el último byte: antes de reintentar o reiniciar se pregunta si la subida terminó.
+async function subidaCompleta(publishId: string, ctx: PublishContext): Promise<boolean> {
+  const r = await api<{ status?: string; uploaded_bytes?: number }>(
+    ctx.http,
+    ctx.sesion,
+    'post/publish/status/fetch/',
+    { publish_id: publishId },
+  );
+  return PASADO_DE_SUBIDA.has(r.status ?? '') || (r.uploaded_bytes ?? 0) >= ctx.archivo.size;
+}
+
 async function subir(data: Record<string, unknown>, ctx: PublishContext): Promise<StepResult> {
   const { size, mimeType } = ctx.archivo;
   const particion = particionTiktok(size);
   const parte = Number(data.parte ?? 0);
+  const publishId = String(data.publishId);
+  const aEstado = () => continuar('estado', { publishId, consultas: 0 }, ESPERA_SEG);
+  if (ctx.reanudando && (await subidaCompleta(publishId, ctx))) return aEstado();
+
   const { inicio, fin } = rangoDeParte(parte, size, particion);
+  const ultima = parte + 1 >= particion.total;
   const r = await solicitar(
     ctx.http,
     String(data.uploadUrl),
@@ -297,12 +333,13 @@ async function subir(data: Record<string, unknown>, ctx: PublishContext): Promis
       headers: { 'Content-Type': mimeType, 'Content-Range': `bytes ${inicio}-${fin}/${size}` },
       body: await ctx.archivo.leerRango(inicio, fin),
     },
-    { red: RED, clasificar: () => null, aceptar: [403, 416], timeoutMs: 10 * 60_000 },
+    { red: RED, clasificar: () => null, aceptar: [403, 416], timeoutMs: 10 * 60_000, final: ultima },
   );
-  // URL vencida (1 hora) o rango fuera de orden: se empieza otra publicación.
-  if (r.status === 403 || r.status === 416) return continuar('inicio', {});
-  if (parte + 1 < particion.total) return continuar('subiendo', { ...data, parte: parte + 1 });
-  return continuar('estado', { publishId: data.publishId, consultas: 0 }, ESPERA_SEG);
+  // URL vencida (1 hora) o rango fuera de orden: si la subida no terminó, se empieza otra publicación.
+  if (r.status === 403 || r.status === 416)
+    return (await subidaCompleta(publishId, ctx)) ? aEstado() : continuar('inicio', {});
+  if (!ultima) return continuar('subiendo', { ...data, parte: parte + 1 });
+  return aEstado();
 }
 
 // publicaly_available_post_id son enteros de 64 bits: JSON.parse los redondea, se leen del texto crudo.
