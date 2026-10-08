@@ -6,3 +6,4 @@ export * from './youtube';
 export * from './meta';
 export * from './facebook';
 export * from './instagram';
+export * from './tiktok';
