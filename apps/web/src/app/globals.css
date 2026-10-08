@@ -161,3 +161,42 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Calendario (FullCalendar) con los colores del tema */
+.calendario-omnistream .fc {
+  --fc-border-color: var(--borde);
+  --fc-page-bg-color: var(--superficie);
+  --fc-neutral-bg-color: var(--superficie-elevada);
+  --fc-today-bg-color: color-mix(in srgb, var(--oro-claro) 18%, transparent);
+  --fc-event-bg-color: var(--superficie-elevada);
+  --fc-event-border-color: var(--oro);
+  --fc-event-text-color: var(--texto);
+  --fc-button-bg-color: var(--superficie-elevada);
+  --fc-button-border-color: var(--borde);
+  --fc-button-text-color: var(--texto);
+  --fc-button-hover-bg-color: var(--superficie);
+  --fc-button-hover-border-color: var(--oro-claro);
+  --fc-button-active-bg-color: var(--oro-claro);
+  --fc-button-active-border-color: var(--oro);
+  --fc-now-indicator-color: var(--peligro);
+  font-family: var(--fuente-texto);
+}
+.calendario-omnistream .fc .fc-toolbar-title {
+  font-family: var(--fuente-titulo);
+  color: var(--texto);
+}
+.calendario-omnistream .fc .fc-button {
+  border-radius: 10px;
+  text-transform: capitalize;
+}
+.calendario-omnistream .fc .fc-event {
+  border-radius: 8px;
+  cursor: pointer;
+}
+.calendario-omnistream .fc .evento-idea {
+  border-style: dashed;
+  background-color: transparent;
+}
+.calendario-omnistream .fc .evento-resaltado {
+  box-shadow: 0 0 0 2px var(--oro);
+}
