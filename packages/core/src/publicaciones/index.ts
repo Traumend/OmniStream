@@ -4,3 +4,7 @@ export * from './estados';
 export * from './jerarquia';
 export * from './texto';
 export * from './tipos';
+export * from './reglas';
+export * from './sugerencias';
+export * from './urls';
+export * from './validacion';
