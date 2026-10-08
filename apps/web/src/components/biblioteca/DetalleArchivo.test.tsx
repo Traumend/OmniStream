@@ -44,12 +44,26 @@ it('muestra el error de un archivo fallido', () => {
 
 it('muestra la fecha de purga y permite posponerla', async () => {
   const alPosponer = vi.fn();
-  render(<DetalleArchivo asset={{ ...videoListo, purgeAt: new Date('2026-10-20T12:00:00Z') }} urls={{}} abierto alCerrar={() => {}} zonaHoraria="UTC" alPosponer={alPosponer} />);
+  render(
+    <DetalleArchivo
+      asset={{ ...videoListo, purgeAt: new Date('2026-10-20T12:00:00Z') }}
+      urls={{}}
+      abierto
+      alCerrar={() => {}}
+      zonaHoraria="UTC"
+      alPosponer={alPosponer}
+    />,
+  );
   expect(screen.getByText(/Se purgará el/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Posponer 7 días' }));
   expect(alPosponer).toHaveBeenCalled();
 });
 it('ofrece crear una publicación con el archivo listo', () => {
-  render(<DetalleArchivo asset={videoListo} urls={{}} abierto alCerrar={() => {}} zonaHoraria="UTC" alPosponer={() => {}} />);
-  expect(screen.getByRole('link', { name: 'Crear publicación' })).toHaveAttribute('href', `/crear?archivo=${videoListo.id}`);
+  render(
+    <DetalleArchivo asset={videoListo} urls={{}} abierto alCerrar={() => {}} zonaHoraria="UTC" alPosponer={() => {}} />,
+  );
+  expect(screen.getByRole('link', { name: 'Crear publicación' })).toHaveAttribute(
+    'href',
+    `/crear?archivo=${videoListo.id}`,
+  );
 });

@@ -15,7 +15,11 @@ export function ZonaSubida({ gestor, maxUploadGb }: { gestor: GestorSubidas; max
       if (!resultado.ok) toast.error(`${archivo.name}: ${resultado.mensaje}`);
     }
   };
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({ onDrop: alSoltar, noClick: true, multiple: true });
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop: alSoltar,
+    noClick: true,
+    multiple: true,
+  });
 
   return (
     <div
@@ -28,8 +32,14 @@ export function ZonaSubida({ gestor, maxUploadGb }: { gestor: GestorSubidas; max
       <input {...getInputProps()} accept={EXTENSIONES} aria-label="Elegir archivos" />
       <CloudUpload className="size-10 text-oro" strokeWidth={1.4} aria-hidden="true" />
       <p className="font-heading text-xl text-texto">Arrastra tus videos e imágenes aquí</p>
-      <p className="text-sm text-texto-secundario">mp4, mov, webm, jpg, png, webp o heic · hasta {maxUploadGb} GB por archivo</p>
-      <button type="button" onClick={open} className="boton-oro mt-1 rounded-[14px] px-6 py-2 font-heading text-lg font-semibold">
+      <p className="text-sm text-texto-secundario">
+        mp4, mov, webm, jpg, png, webp o heic · hasta {maxUploadGb} GB por archivo
+      </p>
+      <button
+        type="button"
+        onClick={open}
+        className="boton-oro mt-1 rounded-[14px] px-6 py-2 font-heading text-lg font-semibold"
+      >
         Elegir archivos
       </button>
     </div>

@@ -10,7 +10,13 @@ const hojas = Array.from({ length: HOJAS }, (_, i) => {
   const y = CENTRO.y + RADIO * Math.sin(radianes);
   const giro = grados + 90 - 38;
   const escala = 1 - i * 0.05;
-  return { x: x.toFixed(2), y: y.toFixed(2), giro: giro.toFixed(1), rx: (7.4 * escala).toFixed(2), ry: (2.9 * escala).toFixed(2) };
+  return {
+    x: x.toFixed(2),
+    y: y.toFixed(2),
+    giro: giro.toFixed(1),
+    rx: (7.4 * escala).toFixed(2),
+    ry: (2.9 * escala).toFixed(2),
+  };
 });
 
 const tallo = (() => {

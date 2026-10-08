@@ -16,7 +16,17 @@ function MensajeError({ mensaje }: { mensaje?: string }) {
   return mensaje ? <p className="text-sm text-peligro">{mensaje}</p> : null;
 }
 
-function SelectorZona({ id, valor, zonas, alCambiar }: { id: string; valor: string; zonas: string[]; alCambiar(z: string): void }) {
+function SelectorZona({
+  id,
+  valor,
+  zonas,
+  alCambiar,
+}: {
+  id: string;
+  valor: string;
+  zonas: string[];
+  alCambiar(z: string): void;
+}) {
   const [abierto, setAbierto] = useState(false);
   return (
     <Popover open={abierto} onOpenChange={setAbierto}>

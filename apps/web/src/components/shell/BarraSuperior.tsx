@@ -59,10 +59,15 @@ export function BarraSuperior({
       </nav>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="ml-auto flex items-center gap-3 rounded-full p-1 hover:bg-accent sm:pr-3" aria-label="Menú de usuario">
+          <button
+            className="ml-auto flex items-center gap-3 rounded-full p-1 hover:bg-accent sm:pr-3"
+            aria-label="Menú de usuario"
+          >
             <Avatar usuario={usuario} />
             <span className="hidden text-left leading-tight sm:block">
-              <span className="block font-heading text-base font-semibold text-texto">{usuario.nombre ?? usuario.email}</span>
+              <span className="block font-heading text-base font-semibold text-texto">
+                {usuario.nombre ?? usuario.email}
+              </span>
               <span className="block text-xs text-texto-secundario">Propietario</span>
             </span>
           </button>

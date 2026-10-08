@@ -20,7 +20,8 @@ function etiquetaEstado(estado: EstadoVisible, progreso?: ProgresoSubida): strin
   if (progreso?.estado === 'error') return 'Error en la subida';
   if (estado !== 'subiendo' || !progreso) return ETIQUETAS_ESTADO[estado];
   if (progreso.estado === 'completada') return ETIQUETAS_ESTADO.procesando;
-  const porcentaje = progreso.bytesTotales > 0 ? Math.floor((progreso.bytesTransferidos * 100) / progreso.bytesTotales) : 0;
+  const porcentaje =
+    progreso.bytesTotales > 0 ? Math.floor((progreso.bytesTransferidos * 100) / progreso.bytesTotales) : 0;
   return `${progreso.estado === 'pausada' ? 'En pausa' : 'Subiendo'} ${porcentaje}%`;
 }
 
@@ -49,7 +50,9 @@ export function TarjetaArchivo({
 }) {
   const Icono = asset.kind === 'image' ? ImageIcon : Film;
   const subiendo =
-    estado === 'subiendo' && progreso && (progreso.estado === 'subiendo' || progreso.estado === 'pausada') ? progreso : null;
+    estado === 'subiendo' && progreso && (progreso.estado === 'subiendo' || progreso.estado === 'pausada')
+      ? progreso
+      : null;
   const errorSubida = progreso?.estado === 'error' ? progreso.error : undefined;
   const detalles = [
     formatearBytes(asset.sizeBytes),
@@ -96,7 +99,10 @@ export function TarjetaArchivo({
         </ul>
 
         {subiendo && (
-          <Progress value={(subiendo.bytesTransferidos * 100) / Math.max(subiendo.bytesTotales, 1)} className="mt-1 h-1.5" />
+          <Progress
+            value={(subiendo.bytesTransferidos * 100) / Math.max(subiendo.bytesTotales, 1)}
+            className="mt-1 h-1.5"
+          />
         )}
         {errorSubida && <p className="text-sm text-peligro">{errorSubida}</p>}
 
