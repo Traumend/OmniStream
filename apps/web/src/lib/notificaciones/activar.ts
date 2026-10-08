@@ -47,7 +47,9 @@ export async function leerEntorno(): Promise<EntornoNotificaciones> {
 
 // Registra el service worker, obtiene el token de este dispositivo y lo agrega a settings/app.fcmTokens.
 async function registrarToken(vapidKey: string) {
-  const registro = await navigator.serviceWorker.register(SERVICE_WORKER);
+  await navigator.serviceWorker.register(SERVICE_WORKER);
+  // register() resuelve mientras el service worker aún se instala, y pushManager.subscribe exige uno activo.
+  const registro = await navigator.serviceWorker.ready;
   const { app, db } = obtenerFirebase();
   const token = await getToken(getMessaging(app), { vapidKey, serviceWorkerRegistration: registro });
   await setDoc(doc(db, 'settings', 'app'), { fcmTokens: arrayUnion(token) }, { merge: true });

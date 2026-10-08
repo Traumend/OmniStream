@@ -68,6 +68,7 @@ export function PaquetePendiente({
   principal,
   urlPrincipal,
   urlDescarga,
+  preparandoDescarga = false,
   urlMiniatura,
   zona,
   alMarcarPublicada,
@@ -77,6 +78,7 @@ export function PaquetePendiente({
   principal: Publicacion | null;
   urlPrincipal?: string;
   urlDescarga?: string;
+  preparandoDescarga?: boolean;
   urlMiniatura?: string;
   zona: string;
   alMarcarPublicada(url: string): Promise<void>;
@@ -131,6 +133,10 @@ export function PaquetePendiente({
               </a>
             </Button>
           </div>
+        ) : preparandoDescarga ? (
+          <p role="status" className="text-texto-secundario">
+            Preparando la descarga…
+          </p>
         ) : (
           <p className="text-peligro">El archivo ya no está disponible.</p>
         )}

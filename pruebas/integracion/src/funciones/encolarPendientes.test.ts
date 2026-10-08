@@ -76,3 +76,27 @@ it('un error al encolar un destino no detiene los demás', async () => {
   expect(encolados).toContain(`${segundo}-tiktok-v1`);
   expect((await leer(primero, 'tiktok')).enqueuedVersion).toBeUndefined();
 });
+
+it('recupera una programada cuya tarea se perdió o llegó antes de tiempo', async () => {
+  const ahora = new Date();
+  const haceUnaHora = new Date(ahora.getTime() - 3_600_000);
+  const enCincoMinutos = new Date(ahora.getTime() + 5 * 60_000);
+  const destino = {
+    platform: 'tiktok',
+    format: 'tiktok',
+    status: 'programada',
+    scheduleVersion: 2,
+    enqueuedVersion: 2,
+  } as const;
+  const perdida = await sembrarPublicacion(db, { destinos: [{ ...destino, scheduledAt: haceUnaHora }] });
+  const aTiempo = await sembrarPublicacion(db, { destinos: [{ ...destino, scheduledAt: enCincoMinutos }] });
+  const llamadas: string[] = [];
+  const { recuperados } = await encolarPendientesAhora({
+    db,
+    ahora,
+    encolar: async (_tarea, { id }) => void llamadas.push(id),
+  });
+  expect(llamadas).toContain(`${perdida}-tiktok-v2-r0`);
+  expect(llamadas.some((id) => id.startsWith(aTiempo))).toBe(false);
+  expect(recuperados).toBeGreaterThanOrEqual(1);
+});

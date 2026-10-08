@@ -52,6 +52,17 @@ export function necesitaEncolarse(
 export const estaAtascado = (destino: Pick<Destino, 'status' | 'lease'>, ahora: Date): boolean =>
   destino.status === 'publicando' && (!destino.lease || destino.lease.until.getTime() < ahora.getTime());
 
+// Su tarea ya se encoló, pero la hora pasó hace más que un lease sin que nadie la tomara: la tarea se perdió
+// (reintentos agotados antes de ejecutarse, cola purgada) o llegó antes de tiempo y terminó sin efecto.
+export const estaVencida = (
+  destino: Pick<Destino, 'status' | 'scheduleVersion' | 'enqueuedVersion' | 'scheduledAt'>,
+  ahora: Date,
+): boolean =>
+  destino.status === 'programada' &&
+  destino.enqueuedVersion === destino.scheduleVersion &&
+  destino.scheduledAt !== undefined &&
+  destino.scheduledAt.getTime() + LEASE_MS < ahora.getTime();
+
 export function modoDePublicacion(
   conexion: { authStatus?: string; publishMode?: ModoPublicacion } | null | undefined,
 ): ModoPublicacion {

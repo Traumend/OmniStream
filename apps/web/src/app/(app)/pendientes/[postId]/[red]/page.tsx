@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Cargando } from '@/components/comunes/Cargando';
 import { PaquetePendiente } from '@/components/pendientes/PaquetePendiente';
 import { useEstadoAjustes } from '@/lib/ajustes/useAjustes';
+import { estadoDescarga } from '@/lib/archivos/descarga';
 import { useArchivos, useUrlDescarga, useUrlsFotogramas } from '@/lib/archivos/repositorio';
 import { ejecutarAccion, mensajeDeError } from '@/lib/publicaciones/acciones';
 import { usePublicacion } from '@/lib/publicaciones/repositorio';
@@ -20,9 +21,10 @@ export default function Paquete() {
   const { publicacion, destinos, cargando } = usePublicacion(postId);
   const principal = usePublicacion(publicacion?.parentId ?? null);
   const { ajustes, cargando: cargandoAjustes } = useEstadoAjustes();
-  const { archivos } = useArchivos();
+  const { archivos, cargando: cargandoArchivos } = useArchivos();
   const asset = archivos.find((a) => a.id === publicacion?.assetId);
   const descarga = useUrlDescarga(asset?.status === 'purgado' ? undefined : asset?.storagePath);
+  const archivo = estadoDescarga({ cargandoArchivos, asset, ...descarga });
   const miniaturas = useUrlsFotogramas(asset);
   const destino = destinos.find((d) => d.platform === red);
   const remotoPrincipal = principal.destinos.find((d) => d.platform === 'youtube')?.remote;
@@ -57,7 +59,8 @@ export default function Paquete() {
       destino={destino}
       principal={principal.publicacion}
       urlPrincipal={remotoPrincipal ? urlVideoYoutube(remotoPrincipal.id) : undefined}
-      urlDescarga={descarga.url}
+      urlDescarga={archivo === 'lista' ? descarga.url : undefined}
+      preparandoDescarga={archivo === 'preparando'}
       urlMiniatura={miniaturas[destino.youtube?.thumbnail?.frame ?? 'start']}
       zona={ajustes.timezone}
       alMarcarPublicada={alMarcarPublicada}

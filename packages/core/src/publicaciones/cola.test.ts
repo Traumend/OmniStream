@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decidirToma, estaAtascado, idTarea, modoDePublicacion, necesitaEncolarse } from './cola';
+import { decidirToma, estaAtascado, estaVencida, idTarea, modoDePublicacion, necesitaEncolarse } from './cola';
 
 const ahora = new Date('2026-10-07T12:00:00Z');
 const en = (ms: number) => new Date(ahora.getTime() + ms);
@@ -46,6 +46,14 @@ it('estaAtascado: publicando sin lease vigente', () => {
   expect(estaAtascado({ status: 'publicando', lease: { attemptId: 'a', until: en(-1) } }, ahora)).toBe(true);
   expect(estaAtascado({ status: 'publicando' }, ahora)).toBe(true);
   expect(estaAtascado({ status: 'publicando', lease: { attemptId: 'a', until: en(1000) } }, ahora)).toBe(false);
+});
+
+it('estaVencida: programada con su tarea encolada y la hora pasada hace más de 15 minutos', () => {
+  const base = { status: 'programada', scheduleVersion: 2, enqueuedVersion: 2, scheduledAt: en(-16 * 60_000) } as const;
+  expect(estaVencida(base, ahora)).toBe(true);
+  expect(estaVencida({ ...base, scheduledAt: en(-14 * 60_000) }, ahora)).toBe(false);
+  expect(estaVencida({ ...base, enqueuedVersion: 1 }, ahora)).toBe(false);
+  expect(estaVencida({ ...base, status: 'pendiente_manual' }, ahora)).toBe(false);
 });
 
 it('modoDePublicacion solo es api con la conexión conectada y en modo api', () => {

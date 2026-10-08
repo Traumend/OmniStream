@@ -63,6 +63,12 @@ it('ofrece descargar el archivo', () => {
   expect(enlace).toHaveAttribute('download');
 });
 
+it('mientras se prepara la descarga no dice que el archivo falta', () => {
+  montar({ preparandoDescarga: true });
+  expect(screen.getByText('Preparando la descarga…')).toBeInTheDocument();
+  expect(screen.queryByText('El archivo ya no está disponible.')).not.toBeInTheDocument();
+});
+
 it('sin enlace de descarga avisa que el archivo no está disponible', () => {
   montar();
   expect(screen.getByText('El archivo ya no está disponible.')).toBeInTheDocument();

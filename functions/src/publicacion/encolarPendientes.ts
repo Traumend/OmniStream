@@ -1,4 +1,11 @@
-import { estaAtascado, leerDestino, necesitaEncolarse, VENTANA_COLA_MS, type Destino } from '@omnistream/core';
+import {
+  estaAtascado,
+  estaVencida,
+  leerDestino,
+  necesitaEncolarse,
+  VENTANA_COLA_MS,
+  type Destino,
+} from '@omnistream/core';
 import { getFirestore, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -33,7 +40,8 @@ async function encolarCada(
   return total;
 }
 
-// Encola lo que entra en la ventana de Cloud Tasks y recupera los destinos cuyo intento quedó sin lease vigente.
+// Encola lo que entra en la ventana de Cloud Tasks y recupera los destinos cuyo intento quedó sin lease vigente
+// o cuya tarea encolada nunca los tomó.
 export async function encolarPendientesAhora(
   deps: DependenciasEncolado,
 ): Promise<{ encolados: number; recuperados: number }> {
@@ -48,7 +56,9 @@ export async function encolarPendientesAhora(
     destinos.where('status', '==', 'publicando').orderBy('scheduledAt').get(),
   ]);
   const encolados = await encolarCada(programados.docs, (d) => necesitaEncolarse(d, ahora), deps, false);
-  const recuperados = await encolarCada(publicando.docs, (d) => estaAtascado(d, ahora), deps, true);
+  const recuperados =
+    (await encolarCada(programados.docs, (d) => estaVencida(d, ahora), deps, true)) +
+    (await encolarCada(publicando.docs, (d) => estaAtascado(d, ahora), deps, true));
   if (encolados + recuperados > 0) logger.info('Destinos encolados', { encolados, recuperados });
   return { encolados, recuperados };
 }
