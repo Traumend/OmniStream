@@ -44,14 +44,16 @@ it('muestra las 4 redes en orden', () => {
 it('el retorno conectado muestra el toast y limpia la URL', async () => {
   navegacion.busqueda = new URLSearchParams('conectada=meta');
   render(<Conexiones />);
-  await waitFor(() => expect(avisos.success).toHaveBeenCalledWith('Meta quedó conectada'));
+  await waitFor(() => expect(avisos.success).toHaveBeenCalledWith('Meta quedó conectada', { id: 'retorno-conexion' }));
   expect(navegacion.replace).toHaveBeenCalledWith('/ajustes/conexiones');
 });
 
 it('el retorno con error muestra el mensaje', async () => {
   navegacion.busqueda = new URLSearchParams({ error: 'Se canceló la conexión con TikTok.' });
   render(<Conexiones />);
-  await waitFor(() => expect(avisos.error).toHaveBeenCalledWith('Se canceló la conexión con TikTok.'));
+  await waitFor(() =>
+    expect(avisos.error).toHaveBeenCalledWith('Se canceló la conexión con TikTok.', { id: 'retorno-conexion' }),
+  );
   expect(navegacion.replace).toHaveBeenCalledWith('/ajustes/conexiones');
 });
 

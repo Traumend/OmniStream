@@ -16,6 +16,7 @@ import { useAjustes } from '@/lib/ajustes/useAjustes';
 import { ejecutarAccionConexion } from '@/lib/conexiones/acciones';
 import { useConexiones } from '@/lib/conexiones/repositorio';
 
+const AVISO_RETORNO = 'retorno-conexion';
 const mensaje = (error: unknown) => (error instanceof Error ? error.message : 'No se pudo completar la acción.');
 
 function Contenido() {
@@ -25,15 +26,16 @@ function Contenido() {
   const { timezone } = useAjustes();
   const [ocupada, setOcupada] = useState<Platform | null>(null);
 
-  // El retorno de OAuth llega con ?conectada= o ?error=; se avisa una vez y se limpia la URL.
+  // El retorno de OAuth llega con ?conectada= o ?error=; se avisa y se limpia la URL. El id fijo evita el aviso
+  // doble cuando el efecto corre dos veces (modo estricto de React en desarrollo).
   useEffect(() => {
     const conectada = busqueda.get('conectada');
     const error = busqueda.get('error');
     if (!conectada && !error) return;
     if (conectada && PROVEEDORES.includes(conectada as Proveedor)) {
-      toast.success(`${ETIQUETAS_PROVEEDOR[conectada as Proveedor]} quedó conectada`);
+      toast.success(`${ETIQUETAS_PROVEEDOR[conectada as Proveedor]} quedó conectada`, { id: AVISO_RETORNO });
     }
-    if (error) toast.error(error);
+    if (error) toast.error(error, { id: AVISO_RETORNO });
     router.replace('/ajustes/conexiones');
   }, [busqueda, router]);
 

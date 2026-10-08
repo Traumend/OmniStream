@@ -1,6 +1,6 @@
 # Guía de configuración de OmniStream
 
-Esta guía explica cómo ejecutar OmniStream en tu equipo y cómo preparar el proyecto de Firebase para producción. Cada fase agrega sus propios pasos; aquí están los de las fases 1 y 2A y la lista de lo que vendrá.
+Esta guía explica cómo ejecutar OmniStream en tu equipo y cómo preparar el proyecto de Firebase para producción. Cada fase agrega sus propios pasos; aquí están los de las fases 1, 2A y 2B y la lista de lo que vendrá.
 
 ## 1. Ejecutar en local
 
@@ -28,13 +28,15 @@ Abre `http://localhost:3000`. En la ventana de inicio de sesión del emulador, e
 
 El emulador de Cloud Tasks (puerto 9499) arranca junto con el de funciones. En local las tareas se entregan de inmediato, sin respetar su hora: la de una publicación programada a futuro termina como "anticipada" sin hacer nada, y las tareas programadas (`encolarPendientes`, `limpiarRetencion`) no corren solas. Para probar el flujo completo en local, usa "Publicar ahora"; en producción Cloud Tasks entrega cada tarea a su hora. Firebase Cloud Messaging no tiene emulador, así que en local Ajustes > Notificaciones no puede activar los avisos push; los avisos sí se registran en la colección `notifications`.
 
+Las funciones de la fase 2B leen secretos (la llave de cifrado y los de cada red). En local, `pnpm test:integracion` y `pnpm test:e2e` ejecutan antes `node scripts/secretos-demo.cjs`, que crea `functions/.secret.local` con valores de demostración si no existe; si arrancas los emuladores a mano, ejecútalo una vez antes. Los conectores no llaman a las redes en local: conectar una red real requiere el proyecto de producción.
+
 `scripts/firebase.cjs` lanza firebase-tools respetando `NO_PROXY`. Solo importa si tu red usa un proxy: sin él, firebase-tools enviaría el tráfico entre emuladores por el proxy y fallaría. Sin proxy, funciona igual que el comando `firebase`.
 
 ### Pruebas
 
 | Comando | Qué verifica |
 |---|---|
-| `pnpm test` | Pruebas unitarias de `core`, `functions` y `web` |
+| `pnpm test` | Pruebas unitarias de `core`, `platforms` (contratos de las APIs de las redes), `functions` y `web` |
 | `pnpm test:integracion` | Reglas de seguridad, bloqueo de acceso, procesamiento de archivos y publicación contra los emuladores |
 | `pnpm test:e2e` | Flujos completos en el navegador contra los emuladores |
 | `pnpm lint` y `pnpm typecheck` | Estilo y tipos |
@@ -83,12 +85,45 @@ Parte de un proyecto que ya cumple la fase 1. Sigue los pasos en orden.
    - Mueve una publicación programada en el calendario y confirma que, a la nueva hora, llega un solo aviso por red.
    - Publica una Hija antes que su Principal: al marcar publicado el YouTube del Principal, la referencia de la Hija pasa a pendiente y aparece en `/pendientes`.
 
-## 4. Próximas fases
+## 4. Producción: fase 2B (conectores y promoción)
+
+Parte de un proyecto que ya cumple la fase 2A. Sigue los pasos en orden; `{URL_PUBLICA}` es el dominio de la web (por ejemplo `https://tu-proyecto.vercel.app`).
+
+0. **Costos (D17).** En Google Cloud > Facturación > Presupuestos y alertas, crea un presupuesto mensual de 1 USD con alertas al 50 %, 90 % y 100 %. Ejecuta `node scripts/firebase.cjs functions:artifacts:setpolicy --project TU_PROYECTO` para que se borren las imágenes antiguas de las funciones. En Ajustes, deja la retención en 0 días: el video se borra en cuanto se publica en todas sus redes y solo se conservan sus datos.
+1. **URL pública.** El dominio de Vercel (o el propio) es `URL_PUBLICA`. En Vercel, agrega `FUNCIONES_URL=https://us-central1-TU_PROYECTO.cloudfunctions.net` y vuelve a desplegar: así `/api/conexiones/retorno`, `/api/meta/borrado-datos` y `/api/media/…` llegan a las funciones desde el dominio de la app.
+2. **Parámetros.** En GitHub (Settings > Secrets and variables > Actions > Variables), crea `URL_PUBLICA`, `META_APP_ID`, `META_CONFIG_ID`, `GOOGLE_CLIENT_ID` y `TIKTOK_CLIENT_KEY`. El flujo "Desplegar" los escribe en `functions/.env.TU_PROYECTO`.
+3. **Secretos.** Con `node scripts/firebase.cjs functions:secrets:set NOMBRE --project TU_PROYECTO`:
+   - `CLAVE_CIFRADO`, generada con `openssl rand -base64 32`. Cifra los accesos a las redes guardados en Firestore; si la cambias, hay que volver a conectar cada red.
+   - `META_APP_SECRET`, `GOOGLE_CLIENT_SECRET` y `TIKTOK_CLIENT_SECRET`.
+
+   La cuenta de despliegue necesita el rol "Administrador de Secret Manager".
+4. **Google (YouTube):**
+   - Habilita YouTube Data API v3 y YouTube Analytics API.
+   - En la pantalla de consentimiento (tipo Externo), agrega los permisos `youtube.upload`, `youtube.force-ssl`, `youtube.readonly` y `yt-analytics.readonly`, y publica la app ("En producción"; con "Prueba", el acceso caduca cada 7 días).
+   - Crea un cliente OAuth de tipo Aplicación web con el URI de redirección `{URL_PUBLICA}/api/conexiones/retorno`.
+   - Mientras el proyecto no pase la auditoría, YouTube deja privados los videos subidos por API: usa el modo manual o solicita la auditoría. Importar un video ya subido (en Crear publicación) solo lee sus datos y funciona sin auditoría.
+5. **Meta (Facebook e Instagram):**
+   - Crea una app de tipo Negocio con Facebook Login for Business.
+   - Crea una configuración con los permisos `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `pages_manage_engagement`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`, `business_management`, `read_insights` e `instagram_manage_insights`. Su id es `META_CONFIG_ID`.
+   - URI de redirección válido: `{URL_PUBLICA}/api/conexiones/retorno`. Política de privacidad: `{URL_PUBLICA}/privacidad`. Devolución de llamada de eliminación de datos: `{URL_PUBLICA}/api/meta/borrado-datos`.
+   - La cuenta de Instagram debe ser profesional y estar vinculada a la página.
+   - **V1:** en modo desarrollo, lo publicado solo lo ven las personas con rol en la app. Para publicar por API, pasa la app a modo Live y confirma que la primera publicación se ve sin iniciar sesión. Si Meta exige App Review para pasarla a Live, deja Facebook e Instagram en manual.
+6. **TikTok:**
+   - Crea una app con Login Kit y Content Posting API (Direct Post), con los permisos `user.info.basic`, `user.info.profile`, `video.publish` y `video.list`.
+   - URI de redirección: `{URL_PUBLICA}/api/conexiones/retorno`.
+   - Para fotos, verifica el prefijo de URL `{URL_PUBLICA}/api/media/` y marca "Dominio verificado en TikTok para fotos" en Conexiones.
+   - **V2:** sin auditoría, TikTok solo publica en privado y en cuentas privadas; TikTok queda en manual hasta la auditoría.
+7. **Conectar.** En Ajustes > Conexiones, conecta cada red y elige "Por API" donde corresponda.
+8. **Verificación (criterio 2B):**
+   - Por cada red en API: publica ahora un video y confirma que pasa a "Publicada" con su enlace.
+   - Publica una Hija y confirma su referencia: comentario en Facebook, Instagram y YouTube; descripción en TikTok.
+   - Importa un video de tu canal en Crear publicación > Importar desde YouTube y confirma que recibe su lista de promoción; los pendientes vencidos llegan como aviso y aparecen en `/pendientes`.
+   - Desconecta y vuelve a conectar.
+   - Registra el resultado de V1 a V3 en la spec (sección 15).
+
+## 5. Próximas fases
 
 | Elemento | Fase |
 |---|---|
-| App de Google Cloud para YouTube (pantalla de consentimiento "En producción") | 2B |
-| App de Meta (Facebook Login for Business; Instagram Business vinculada a la página) | 2B |
-| App de TikTok (Login Kit + Content Posting API); verificación de dominio solo para fotos | 2B |
 | Llaves de Anthropic y OpenAI | 4 |
 | Llave pública de Google para YouTube (tendencias) | 6 |
