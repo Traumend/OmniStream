@@ -11,4 +11,5 @@ export { limpiarRetencion } from './publicacion/limpiarRetencion';
 export { procesarArchivo } from './archivos/procesarArchivo';
 export { publicaciones } from './publicacion/publicaciones';
 export { publicarDestino } from './publicacion/publicarDestino';
+export { conexiones, retornoConexion } from './conexiones/conexiones';
 export { renovarSesiones } from './conexiones/sesiones';
