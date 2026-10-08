@@ -4,6 +4,8 @@ import {
   leerDestino,
   type Asset,
   type Destino,
+  type EntradaPublicacion,
+  type FormatoDestino,
   type Platform,
   type Publicacion,
 } from '@omnistream/core';
@@ -65,4 +67,17 @@ export async function sembrarPublicacion(
 
 export async function leerDestinoDe(db: Firestore, postId: string, red: Platform): Promise<Destino> {
   return leerDestino((await db.doc(`posts/${postId}/targets/${red}`).get()).data());
+}
+
+export function entradaDePrueba(assetId: string, redes: [Platform, FormatoDestino][]): EntradaPublicacion {
+  return {
+    title: 'Prueba',
+    assetId,
+    base: { text: 'Hola', hashtags: [] },
+    scheduledAt: null,
+    parentId: null,
+    destinos: redes.map(([platform, format]) =>
+      platform === 'youtube' ? { platform, format, youtube: CAMPOS_YOUTUBE_POR_DEFECTO } : { platform, format },
+    ),
+  };
 }
