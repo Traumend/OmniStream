@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { destinoNuevo, leerDestino, leerPublicacion } from './conversion';
+import { CAMPOS_TIKTOK_POR_DEFECTO } from './tipos';
 
 const ts = (iso: string) => ({ toDate: () => new Date(iso) });
 
@@ -49,4 +50,23 @@ it('destinoNuevo crea un borrador', () => {
     parentRef: { status: 'en_espera' },
     attempts: 0,
   });
+});
+
+it('leerDestino conserva los campos de TikTok y el seq del checkpoint', () => {
+  const tiktok = { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy: 'SELF_ONLY' as const };
+  const d = leerDestino({
+    platform: 'tiktok',
+    format: 'tiktok',
+    tiktok,
+    checkpoint: { stage: 'subiendo', data: { parte: 1 }, seq: 3 },
+    parentRef: { status: 'pendiente', error: 'Falló' },
+  });
+  expect(d.tiktok).toEqual(tiktok);
+  expect(d.checkpoint).toEqual({ stage: 'subiendo', data: { parte: 1 }, seq: 3 });
+  expect(d.parentRef).toEqual({ status: 'pendiente', error: 'Falló' });
+});
+
+it('destinoNuevo incluye los campos de TikTok', () => {
+  const d = destinoNuevo('tiktok', 'tiktok', { esHija: false, ahora: new Date(0), tiktok: CAMPOS_TIKTOK_POR_DEFECTO });
+  expect(d.tiktok).toEqual(CAMPOS_TIKTOK_POR_DEFECTO);
 });

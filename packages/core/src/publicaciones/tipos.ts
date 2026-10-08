@@ -39,7 +39,7 @@ export type EstadoDestino =
   'borrador' | 'programada' | 'publicando' | 'publicada' | 'fallida' | 'pendiente_manual' | 'cancelada';
 export type EstadoPublicacion = 'idea' | 'borrador' | 'programada' | 'publicando' | 'publicada' | 'parcial' | 'fallida';
 export type TipoPublicacion = 'principal' | 'hija' | 'independiente';
-export type EstadoReferencia = 'no_aplica' | 'en_espera' | 'pendiente' | 'publicada' | 'fallida';
+export type EstadoReferencia = 'no_aplica' | 'en_espera' | 'pendiente' | 'publicando' | 'publicada' | 'fallida';
 export type ModoPublicacion = 'api' | 'manual';
 export type TipoError = 'temporal' | 'definitivo' | 'ambiguo' | 'auth';
 
@@ -58,6 +58,33 @@ export const CAMPOS_YOUTUBE_POR_DEFECTO: CamposYoutube = {
   categoryId: '22',
   privacy: 'public',
   madeForKids: false,
+};
+
+export const PRIVACIDADES_TIKTOK = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'] as const;
+export type PrivacidadTiktok = (typeof PRIVACIDADES_TIKTOK)[number];
+
+export const ETIQUETAS_PRIVACIDAD_TIKTOK: Record<PrivacidadTiktok, string> = {
+  PUBLIC_TO_EVERYONE: 'Todos',
+  MUTUAL_FOLLOW_FRIENDS: 'Amigos',
+  FOLLOWER_OF_CREATOR: 'Seguidores',
+  SELF_ONLY: 'Solo yo',
+};
+
+// Spec 7.4.1: la privacidad no tiene valor por defecto y las interacciones empiezan sin marcar.
+export interface CamposTiktok {
+  privacy: PrivacidadTiktok | null;
+  allowComments: boolean;
+  allowDuet: boolean;
+  allowStitch: boolean;
+  commercial: { enabled: boolean; yourBrand: boolean; brandedContent: boolean };
+}
+
+export const CAMPOS_TIKTOK_POR_DEFECTO: CamposTiktok = {
+  privacy: null,
+  allowComments: false,
+  allowDuet: false,
+  allowStitch: false,
+  commercial: { enabled: false, yourBrand: false, brandedContent: false },
 };
 
 export const CATEGORIAS_YOUTUBE: { id: string; nombre: string }[] = [
@@ -102,6 +129,7 @@ export interface Destino {
   format: FormatoDestino;
   overrides: { text?: string; hashtags?: string[]; title?: string; scheduledAt?: Date };
   youtube?: CamposYoutube;
+  tiktok?: CamposTiktok;
   scheduledAt?: Date;
   scheduleVersion: number;
   enqueuedVersion?: number;
@@ -109,9 +137,9 @@ export interface Destino {
   status: EstadoDestino;
   statusChangedAt: Date;
   lease?: { attemptId: string; until: Date };
-  checkpoint?: { stage: string; data: Record<string, unknown> };
+  checkpoint?: { stage: string; data: Record<string, unknown>; seq: number };
   remote?: RemoteRef & { publishedAt: Date };
-  parentRef: { status: EstadoReferencia; remoteCommentId?: string };
+  parentRef: { status: EstadoReferencia; remoteCommentId?: string; error?: string };
   attempts: number;
   lastError?: { code: string; message: string; kind: TipoError; at: Date };
 }

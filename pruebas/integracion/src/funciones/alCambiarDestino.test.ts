@@ -73,7 +73,7 @@ it('un destino que llega a pendiente_manual genera su aviso y actualiza la publi
 });
 
 it('un destino fallido genera aviso de fallo', async () => {
-  await db.doc('connections/facebook').set({ authStatus: 'conectada', publishMode: 'api' });
+  await db.doc('connections/facebook').set({ authStatus: 'conectada', publishMode: 'api', scopes: ['pages_manage_posts'] });
   try {
     const { postId } = await propietario.llamar({ accion: 'guardar', publicacion: entrada([['facebook', 'reel']]) });
     await propietario.llamar({ accion: 'programar', postId, inmediata: true });

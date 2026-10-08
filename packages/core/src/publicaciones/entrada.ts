@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ETIQUETAS_FORMATO, ETIQUETAS_RED, FORMATOS, FORMATOS_POR_RED, PLATAFORMAS } from './tipos';
+import { ETIQUETAS_FORMATO, ETIQUETAS_RED, FORMATOS, FORMATOS_POR_RED, PLATAFORMAS, PRIVACIDADES_TIKTOK } from './tipos';
 
 const plataforma = z.enum(PLATAFORMAS);
 const formato = z.enum(FORMATOS);
@@ -14,10 +14,19 @@ export const camposYoutubeSchema = z.object({
   thumbnail: z.object({ frame: z.enum(['start', 'middle', 'end']) }).optional(),
 });
 
+export const camposTiktokSchema = z.object({
+  privacy: z.enum(PRIVACIDADES_TIKTOK).nullable(),
+  allowComments: z.boolean(),
+  allowDuet: z.boolean(),
+  allowStitch: z.boolean(),
+  commercial: z.object({ enabled: z.boolean(), yourBrand: z.boolean(), brandedContent: z.boolean() }),
+});
+
 const destinoEntradaSchema = z.object({
   platform: plataforma,
   format: formato,
   youtube: camposYoutubeSchema.optional(),
+  tiktok: camposTiktokSchema.optional(),
 });
 
 // Los límites de cada red no van aquí: un borrador puede excederlos y los aplica validarPublicacion.

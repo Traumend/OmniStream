@@ -1,4 +1,4 @@
-import type { Destino, ModoPublicacion, Platform } from './tipos';
+import type { Destino, Platform } from './tipos';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -13,6 +13,12 @@ export function idTarea(postId: string, platform: Platform, version: number, rec
   const base = `${postId}-${platform}-v${version}`;
   return recuperacion === undefined ? base : `${base}-r${recuperacion}`;
 }
+
+export const idContinuacion = (postId: string, platform: Platform, version: number, seq: number): string =>
+  `${idTarea(postId, platform, version)}-c${seq}`;
+
+export const idReferencia = (postId: string, platform: Platform, version: number): string =>
+  `${postId}-${platform}-ref-v${version}`;
 
 export type MotivoOmision = 'inexistente' | 'version' | 'estado' | 'anticipada' | 'ocupada';
 export type DecisionToma = { tomar: true; continuar: boolean } | { tomar: false; motivo: MotivoOmision };
@@ -62,9 +68,3 @@ export const estaVencida = (
   destino.enqueuedVersion === destino.scheduleVersion &&
   destino.scheduledAt !== undefined &&
   destino.scheduledAt.getTime() + LEASE_MS < ahora.getTime();
-
-export function modoDePublicacion(
-  conexion: { authStatus?: string; publishMode?: ModoPublicacion } | null | undefined,
-): ModoPublicacion {
-  return conexion?.authStatus === 'conectada' && conexion.publishMode === 'api' ? 'api' : 'manual';
-}

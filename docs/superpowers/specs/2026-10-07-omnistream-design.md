@@ -108,21 +108,23 @@ Versiones: Node.js LTS soportado tanto por Cloud Functions como por Vercel (22 o
 ### 5.2 Interfaz común de los conectores (`packages/platforms`)
 
 ```ts
+// Por proveedor (meta, youtube, tiktok): un inicio de sesión de Meta crea dos conexiones.
+interface OAuthProvider {
+  proveedor: Proveedor;
+  buildAuthUrl(p: { state: string; redirectUri: string }): string;
+  exchangeCode(p: { code: string; redirectUri: string }): Promise<ResultadoConexion>; // sesión, permisos y cuentas por red
+  refresh(sesion: SesionProveedor): Promise<SesionProveedor>;
+}
+// Por red.
 interface PlatformAdapter {
   platform: Platform;
-  // Conexión
-  buildAuthUrl(state: string, pkce?: PkceChallenge): string;
-  exchangeCode(code: string, pkce?: PkceVerifier): Promise<ConnectionTokens & AccountInfo>;
-  refresh(tokens: ConnectionTokens): Promise<ConnectionTokens>;
   // Publicación por etapas: recibe el punto de control y devuelve el siguiente
-  publishStep(target: EffectiveTarget, checkpoint: Checkpoint | null, ctx: PublishContext): Promise<StepResult>;
-  findExisting(target: EffectiveTarget, window: TimeWindow): Promise<RemoteRef | null>;
-  postComment(remoteId: string, text: string): Promise<RemoteRef>; // TikTok lanza NotSupported
-  // Lectura
-  fetchMetrics(remoteIds: string[]): Promise<Record<string, NormalizedMetrics>>;
-  fetchFollowers(): Promise<number>;
-  parsePublicUrl(url: string): RemoteRef | null; // para el modo manual
+  publishStep(target: DestinoEfectivo, checkpoint: Checkpoint | null, ctx: PublishContext): Promise<StepResult>;
+  findExisting(target: DestinoEfectivo, window: { desde: Date; hasta: Date }, ctx): Promise<RemoteRef | null>;
+  postComment(remoteId: string, text: string, ctx): Promise<{ id: string }>; // TikTok lanza un error definitivo
 }
+// PublishContext lleva reanudando: true cuando la ejecución continúa desde un checkpoint guardado.
+// fetchMetrics y fetchFollowers llegan en la fase 5; parsePublicUrl es analizarUrlPublica de core.
 ```
 
 `StepResult` es `{ kind: 'continue', checkpoint, delaySec? } | { kind: 'done', remote } | { kind: 'error', error: PlatformError }`, y `PlatformError` lleva `kind: 'temporal' | 'definitivo' | 'ambiguo' | 'auth'`.
@@ -148,11 +150,11 @@ Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager + Cl
 | `procesarArchivo` | Fin de subida a Storage | Lee los datos técnicos con ffprobe por URL firmada, sin descargar el archivo completo. Extrae 3 fotogramas (segundo 1, mitad, un segundo antes del final). Convierte heic a jpg. | 1 |
 | `generarRecorte` | Cola | Genera el archivo derivado (ffmpeg para video, sharp para imagen) a la resolución recomendada de la red. Memoria 4 GiB, tiempo máximo 30 min. | 3 |
 | `publicaciones` | Invocable | Acciones del usuario sobre publicaciones: guardar, eliminar, desvincular, programar o publicar ahora, mover, cancelar, reintentar, marcar publicada y marcar la referencia como publicada. | 2A |
-| `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Tiempo máximo 30 min (límite de las funciones de cola); una subida más larga continúa desde su `checkpoint` en otra ejecución. En 2A solo resuelve el modo manual; 2B agrega la publicación por API. | 2A / 2B |
+| `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Memoria de 1 GiB; tiempo máximo 30 min (límite de las funciones de cola); una subida más larga continúa desde su `checkpoint` en otra ejecución. En 2A solo resuelve el modo manual; 2B agrega la publicación por API. | 2A / 2B |
 | `comentarReferencia` | Cola | Publica la referencia al Padre por API. | 2B |
 | `alCambiarDestino` | Escritura en `targets` | Recalcula el estado de la publicación, marca las referencias de las Hijas como pendientes cuando se publica su Principal y envía notificaciones push (pendiente manual, fallo, referencia pendiente). En 2B además encola `comentarReferencia`. | 2A |
 | `encolarPendientes` | Cada hora | Encola los destinos programados que entran en la ventana de 29 días y aún no tienen tarea, y vuelve a encolar los destinos atascados: en `publicando` con el `lease` vencido, o en `programada` con su tarea ya encolada y la hora pasada hace más de 15 minutos (tarea perdida o entregada antes de tiempo). | 2A |
-| `conexiones` | Invocable y HTTP | Inicia la conexión con una red, recibe el retorno de OAuth y desconecta. | 2B |
+| `conexiones` / `retornoConexion` | Invocable / HTTP | Inicia la conexión con una red, configura su modo, consulta la cuenta de TikTok y desconecta; `retornoConexion` recibe el retorno de OAuth. | 2B |
 | `borradoDatosMeta` | HTTP | Recibe las solicitudes de borrado de datos de Meta. | 2B |
 | `media` | HTTP | Sirve archivos desde el dominio propio cuando una red exige dominio verificado. | 2B |
 | `renovarSesiones` | Diaria | Renueva los accesos a las redes antes de que caduquen. | 2B |
@@ -256,14 +258,19 @@ Notación de tipos en TypeScript. `Platform = 'facebook' | 'instagram' | 'youtub
   tokenExpiresAt?: Timestamp;
   lastMetricsSyncAt?: Timestamp;
   lastError?: { code: string; message: string; at: Timestamp };
+  mediaVerified?: boolean;            // TikTok: dominio de /api/media/ verificado (fotos por API)
 }
 
 // secrets/{id}  — ids: 'meta', 'youtube', 'tiktok', 'ai_anthropic', 'ai_openai'
 // Inaccesible desde el navegador (reglas: deny all). Solo el SDK de administración.
+// En los proveedores, el texto cifrado es la sesión: { accessToken, refreshToken?, expiresAt?, refreshExpiresAt?, datos }.
 { ciphertext: string; iv: string; authTag: string; keyVersion: number; updatedAt: Timestamp }
+
+// oauthStates/{state}   — { proveedor, createdAt, expiresAt } (10 minutos, un solo uso). Sin acceso del cliente.
+// dataDeletions/{code}  — { userId, at } (solicitudes de borrado de Meta). Sin acceso del cliente.
 ```
 
-Un solo inicio de sesión de Meta crea las conexiones `facebook` e `instagram`.
+Un solo inicio de sesión de Meta crea las conexiones `facebook` e `instagram`; se conecta exactamente una página.
 
 ### 6.3 Archivos
 
@@ -325,10 +332,10 @@ Rutas en Storage: `originales/{assetId}`, `fotogramas/{assetId}/{start|middle|en
   status: 'borrador' | 'programada' | 'publicando' | 'publicada' | 'fallida' | 'pendiente_manual' | 'cancelada';
   statusChangedAt: Timestamp;        // última transición de estado (retención y orden)
   lease?: { attemptId: string; until: Timestamp };
-  checkpoint?: { stage: string; data: Record<string, unknown> };
+  checkpoint?: { stage: string; data: Record<string, unknown>; seq: number }; // seq: id único de cada continuación
   derivative?: { cropHash: string; storagePath?: string; status: 'pendiente' | 'generando' | 'listo' | 'fallido' };
   remote?: { id: string; url: string; publishedAt: Timestamp };
-  parentRef: { status: 'no_aplica' | 'en_espera' | 'pendiente' | 'publicada' | 'fallida'; remoteCommentId?: string };
+  parentRef: { status: 'no_aplica' | 'en_espera' | 'pendiente' | 'publicando' | 'publicada' | 'fallida'; remoteCommentId?: string; error?: string }; // publicando: comentario por API en cola
   metrics?: NormalizedMetrics & { syncedAt: Timestamp };
   attempts: number;
   lastError?: { code: string; message: string; kind: 'temporal' | 'definitivo' | 'ambiguo' | 'auth'; at: Timestamp };
@@ -342,7 +349,7 @@ type Crop = { aspect: '16:9' | '9:16' | '1:1' | '4:5' | '1.91:1'; x: number; y: 
 
 // notifications/{id}  — registro de cada aviso; el id deriva del evento que lo produjo, así un reintento no duplica el push
 {
-  tipo: 'pendiente_manual' | 'fallo' | 'referencia';
+  tipo: 'pendiente_manual' | 'fallo' | 'referencia' | 'conexion' | 'promocion';
   titulo: string; cuerpo: string; enlace: string;  // enlace: ruta de la app
   createdAt: Timestamp; push: { enviados: number; fallidos: number };
 }
@@ -468,9 +475,9 @@ Una tarjeta por red muestra estado, cuenta, caducidad del acceso, interruptor de
 
 | Red | Inicio de sesión | Duración del acceso | Notas |
 |---|---|---|---|
-| Meta | Facebook Login for Business: se elige la página; se obtiene la cuenta de Instagram vinculada. | El acceso de la página no caduca salvo cambio de contraseña o revocación. | Crea las conexiones `facebook` e `instagram`. |
+| Meta | Facebook Login for Business (Graph API `v26.0`): se elige una sola página; se obtiene la cuenta de Instagram vinculada. | El acceso de la página no caduca salvo cambio de contraseña o revocación. | Crea las conexiones `facebook` e `instagram`. |
 | YouTube | OAuth de Google con acceso sin conexión. Permisos para subir, comentar y leer métricas. | Se renueva con el token de actualización. | La app de Google debe estar "En producción". |
-| TikTok | Login Kit con PKCE. Permisos para publicar, subir y listar videos. | 24 horas; se renueva automáticamente. | |
+| TikTok | Login Kit for Web (sin PKCE: la documentación lo reserva a móvil y escritorio; protege el `state` de un solo uso). Permisos `user.info.basic`, `user.info.profile`, `video.publish`, `video.list`. | 24 horas; el token de actualización dura 365 días y puede rotar. | |
 
 Cada inicio de sesión usa un valor `state` (y PKCE donde aplica) guardado en Firestore, inaccesible desde el cliente y con caducidad de 10 minutos. `renovarSesiones` renueva los accesos a diario y `publicarDestino` lo hace también si el acceso vence en menos de 10 minutos. Un error de autenticación marca la conexión como `expirada` y muestra un aviso para reconectar.
 
@@ -512,6 +519,8 @@ Se guardan como datos, no como código disperso. Los valores iniciales se verifi
 | TikTok video | Máximo que informa la cuenta | 9:16 | ≤ 2.200 caracteres |
 | TikTok foto | No aplica | 9:16 recomendada | ≤ 2.200 caracteres |
 
+Límites por API (verificados el 2026-10-08, V3; solo para destinos en modo API): Facebook imagen ≤ 10 MB (JPEG, PNG, GIF, BMP o TIFF); Instagram Reel ≤ 300 MB; Instagram imagen ≤ 8 MB, solo JPEG; TikTok video ≤ 4 GB y ≤ 10 min; TikTok foto ≤ 20 MB (JPEG o WEBP). La descripción de YouTube se mide en bytes (≤ 5.000) e Instagram admite ≤ 20 menciones.
+
 Resoluciones de salida de los recortes: 9:16 → 1080×1920; 1:1 → 1080×1080; 4:5 → 1080×1350; 16:9 → 1920×1080; 1.91:1 → 1080×566.
 
 #### 7.4.1 Requisitos de interfaz de TikTok
@@ -536,7 +545,7 @@ La pantalla de publicación de TikTok muestra el nombre de la cuenta, un selecto
 | Autenticación | Acceso inválido o revocado | `fallida` y conexión `expirada`; aviso para reconectar. |
 | Ambiguo | Tiempo agotado en el paso final | Antes de repetir, `findExisting` busca en las publicaciones recientes de la cuenta una que coincida por título o texto en una ventana de ±30 minutos. Si existe, se toma como publicada. |
 
-Cada intento queda en `attempts`. Los fallos envían una notificación push.
+Cada intento queda en `attempts`. Los fallos envían una notificación push. Si el comentario de referencia por API falla, la referencia vuelve a `pendiente` (modo manual en `/pendientes`) con aviso.
 
 ### 7.7 Retención
 
@@ -781,9 +790,9 @@ Cada punto tiene definido su comportamiento si la verificación resulta negativa
 
 | # | Punto | Fase | Si resulta negativo |
 |---|---|---|---|
-| V1 | ¿Lo publicado por la app de Meta en modo desarrollo es visible públicamente? | 2B | Facebook e Instagram en modo manual hasta App Review. |
-| V2 | ¿TikTok permite enviar a la bandeja de borradores y leer métricas sin auditoría? | 2B / 5 | Publicación manual; TikTok sin métricas hasta la auditoría. |
-| V3 | Límites vigentes de cada red (tabla 7.4) y nombres vigentes de las métricas de Meta. | 2B / 5 | Se ajustan los datos en `core/rules` y en el conector. |
+| V1 | ¿Lo publicado por la app de Meta en modo desarrollo es visible públicamente? Resultado (documentación, 2026-10-08): no, solo lo ven las personas con rol en la app. | 2B | Facebook e Instagram por API solo con la app en modo Live; si exige App Review, modo manual hasta la aprobación. |
+| V2 | ¿TikTok permite enviar a la bandeja de borradores y leer métricas sin auditoría? Resultado (documentación): sin auditoría solo publica como `SELF_ONLY` en cuentas privadas; la bandeja de borradores no se implementa. | 2B / 5 | Publicación manual; TikTok sin métricas hasta la auditoría. |
+| V3 | Límites vigentes de cada red (tabla 7.4) y nombres vigentes de las métricas de Meta. Resultado: límites verificados el 2026-10-08 (sección 7.4); métricas en la fase 5. | 2B / 5 | Se ajustan los datos en `core/rules` y en el conector. |
 | V4 | ¿YouTube Analytics expone el tráfico de "video relacionado" de los Shorts? | 5 | Se omite esa métrica. |
 | V5 | Cuota gratuita vigente del plan Blaze para Storage y Functions. | 1 | Se ajusta `retentionDays` y la alerta de presupuesto. |
 

@@ -64,7 +64,7 @@ it('cancelar sin destinos cancelables se rechaza', async () => {
 });
 
 it('reintentar vuelve a programar un destino fallido', async () => {
-  await db.doc('connections/facebook').set({ authStatus: 'conectada', publishMode: 'api' });
+  await db.doc('connections/facebook').set({ authStatus: 'conectada', publishMode: 'api', scopes: ['pages_manage_posts'] });
   const { postId } = await propietario.llamar({ accion: 'guardar', publicacion: entrada([['facebook', 'reel']]) });
   await propietario.llamar({ accion: 'programar', postId, inmediata: true });
   await esperarHasta(

@@ -1,15 +1,17 @@
-import type {
-  CamposYoutube,
-  Destino,
-  EstadoDestino,
-  EstadoPublicacion,
-  EstadoReferencia,
-  FormatoDestino,
-  Intento,
-  Platform,
-  Publicacion,
-  TipoError,
-  TipoPublicacion,
+import {
+  PRIVACIDADES_TIKTOK,
+  type CamposTiktok,
+  type CamposYoutube,
+  type Destino,
+  type EstadoDestino,
+  type EstadoPublicacion,
+  type EstadoReferencia,
+  type FormatoDestino,
+  type Intento,
+  type Platform,
+  type Publicacion,
+  type TipoError,
+  type TipoPublicacion,
 } from './tipos';
 
 type Registro = Record<string, unknown>;
@@ -66,6 +68,26 @@ function leerYoutube(valor: unknown): CamposYoutube | undefined {
   });
 }
 
+function leerTiktok(valor: unknown): CamposTiktok | undefined {
+  if (typeof valor !== 'object' || valor === null) return undefined;
+  const t = registro(valor);
+  const comercial = registro(t.commercial);
+  const privacidad = texto(t.privacy);
+  return {
+    privacy: (PRIVACIDADES_TIKTOK as readonly string[]).includes(privacidad ?? '')
+      ? (privacidad as CamposTiktok['privacy'])
+      : null,
+    allowComments: t.allowComments === true,
+    allowDuet: t.allowDuet === true,
+    allowStitch: t.allowStitch === true,
+    commercial: {
+      enabled: comercial.enabled === true,
+      yourBrand: comercial.yourBrand === true,
+      brandedContent: comercial.brandedContent === true,
+    },
+  };
+}
+
 export function leerDestino(datos: unknown): Destino {
   const d = registro(datos);
   const overrides = registro(d.overrides);
@@ -86,6 +108,7 @@ export function leerDestino(datos: unknown): Destino {
       scheduledAt: aFecha(overrides.scheduledAt),
     }),
     youtube: leerYoutube(d.youtube),
+    tiktok: leerTiktok(d.tiktok),
     scheduledAt: aFecha(d.scheduledAt),
     scheduleVersion: numero(d.scheduleVersion) ?? 0,
     enqueuedVersion: numero(d.enqueuedVersion),
@@ -94,7 +117,7 @@ export function leerDestino(datos: unknown): Destino {
     statusChangedAt: aFecha(d.statusChangedAt) ?? new Date(0),
     lease: texto(lease.attemptId) && hasta ? { attemptId: lease.attemptId as string, until: hasta } : undefined,
     checkpoint: texto(checkpoint.stage)
-      ? { stage: checkpoint.stage as string, data: registro(checkpoint.data) }
+      ? { stage: checkpoint.stage as string, data: registro(checkpoint.data), seq: numero(checkpoint.seq) ?? 0 }
       : undefined,
     remote:
       texto(remote.id) && texto(remote.url) && publicada
@@ -103,6 +126,7 @@ export function leerDestino(datos: unknown): Destino {
     parentRef: definidos({
       status: (texto(parentRef.status) as EstadoReferencia | undefined) ?? 'no_aplica',
       remoteCommentId: texto(parentRef.remoteCommentId),
+      error: texto(parentRef.error),
     }),
     attempts: numero(d.attempts) ?? 0,
     lastError: texto(error.message)
@@ -130,13 +154,14 @@ export function leerIntento(id: string, datos: unknown): Intento {
 export function destinoNuevo(
   platform: Platform,
   format: FormatoDestino,
-  opciones: { esHija: boolean; ahora: Date; youtube?: CamposYoutube },
+  opciones: { esHija: boolean; ahora: Date; youtube?: CamposYoutube; tiktok?: CamposTiktok },
 ): Destino {
   return definidos({
     platform,
     format,
     overrides: {},
     youtube: opciones.youtube,
+    tiktok: opciones.tiktok,
     scheduleVersion: 0,
     publishMode: 'manual',
     status: 'borrador',

@@ -1,4 +1,5 @@
 import {
+  leerConexion,
   leerDestino,
   leerPublicacion,
   modoDePublicacion,
@@ -80,7 +81,7 @@ export async function leerModos(db: Firestore, redes: readonly Platform[]): Prom
   if (redes.length === 0) return modos;
   const conexiones = await db.getAll(...redes.map((red) => db.collection('connections').doc(red)));
   for (const conexion of conexiones) {
-    modos[conexion.id as Platform] = modoDePublicacion(conexion.data());
+    modos[conexion.id as Platform] = modoDePublicacion(leerConexion(conexion.id as Platform, conexion.data()));
   }
   return modos;
 }

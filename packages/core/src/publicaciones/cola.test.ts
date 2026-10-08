@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decidirToma, estaAtascado, estaVencida, idTarea, modoDePublicacion, necesitaEncolarse } from './cola';
+import { decidirToma, estaAtascado, estaVencida, idContinuacion, idReferencia, idTarea, necesitaEncolarse } from './cola';
 
 const ahora = new Date('2026-10-07T12:00:00Z');
 const en = (ms: number) => new Date(ahora.getTime() + ms);
@@ -56,8 +56,8 @@ it('estaVencida: programada con su tarea encolada y la hora pasada hace más de 
   expect(estaVencida({ ...base, status: 'pendiente_manual' }, ahora)).toBe(false);
 });
 
-it('modoDePublicacion solo es api con la conexión conectada y en modo api', () => {
-  expect(modoDePublicacion(undefined)).toBe('manual');
-  expect(modoDePublicacion({ authStatus: 'expirada', publishMode: 'api' })).toBe('manual');
-  expect(modoDePublicacion({ authStatus: 'conectada', publishMode: 'api' })).toBe('api');
+
+it('ids de continuación y de referencia', () => {
+  expect(idContinuacion('p1', 'tiktok', 3, 2)).toBe('p1-tiktok-v3-c2');
+  expect(idReferencia('p1', 'facebook', 3)).toBe('p1-facebook-ref-v3');
 });

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { accionPublicacionSchema, entradaPublicacionSchema } from './entrada';
+import { CAMPOS_TIKTOK_POR_DEFECTO } from './tipos';
 
 const minima = {
   title: 'Hola',
@@ -47,4 +48,19 @@ it('valida cada acción', () => {
   ).toBe('Pega la URL de la publicación.');
   expect(accionPublicacionSchema.safeParse({ accion: 'borrarTodo' }).success).toBe(false);
   expect(accionPublicacionSchema.safeParse({ accion: 'programar', postId: 'p', inmediata: true }).success).toBe(true);
+});
+
+it('acepta los campos de TikTok y rechaza una privacidad inválida', () => {
+  const tiktok = (privacy: string) => ({
+    ...minima,
+    destinos: [
+      {
+        platform: 'tiktok',
+        format: 'tiktok',
+        tiktok: { ...CAMPOS_TIKTOK_POR_DEFECTO, privacy },
+      },
+    ],
+  });
+  expect(entradaPublicacionSchema.safeParse(tiktok('SELF_ONLY')).success).toBe(true);
+  expect(entradaPublicacionSchema.safeParse(tiktok('PRIVADO')).success).toBe(false);
 });

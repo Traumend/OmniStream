@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { avisoDe } from './avisos';
+import { avisoConexion, avisoDe } from './avisos';
 
 it.each([
   [
@@ -18,5 +18,14 @@ it.each([
   expect(avisoDe(tipo, { postId: 'p1', titulo: 'Mi corto', platform: 'tiktok', error: 'Sin conector.' })).toEqual({
     tipo,
     ...esperado,
+  });
+});
+
+it('aviso de conexión vencida', () => {
+  expect(avisoConexion('youtube')).toEqual({
+    tipo: 'conexion',
+    titulo: 'Reconecta YouTube',
+    cuerpo: 'El acceso venció. Vuelve a conectarla para publicar por API.',
+    enlace: '/ajustes/conexiones',
   });
 });
