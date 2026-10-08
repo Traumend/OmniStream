@@ -1,8 +1,8 @@
-# Fase 2B (Conectores): plan de implementación
+# Fase 2B (Conectores y promoción): plan de implementación
 
 > **Para agentes:** SUB-SKILL REQUERIDA: usar superpowers:subagent-driven-development (recomendado) o superpowers:executing-plans para implementar este plan tarea por tarea. Los pasos usan casillas (`- [ ]`) para el seguimiento.
 
-**Objetivo:** conectar Facebook, Instagram, YouTube y TikTok por OAuth y publicar por API de punta a punta, por etapas y con continuación desde el `checkpoint`. También: comentar la referencia al Principal por API, renovar los accesos, mostrar la interfaz de publicación que exige TikTok y atender el borrado de datos de Meta. Ninguna red pierde el modo manual: el modo de publicación se elige por red.
+**Objetivo:** conectar Facebook, Instagram, YouTube y TikTok por OAuth y publicar por API de punta a punta, por etapas y con continuación desde el `checkpoint`. También: comentar la referencia al Principal por API, renovar los accesos, mostrar la interfaz de publicación que exige TikTok y atender el borrado de datos de Meta. Ninguna red pierde el modo manual: el modo de publicación se elige por red. Además (D17–D19): importar un Principal desde YouTube sin subir el archivo, la lista de promoción de cada Principal (shorts, Comunidad, exposición) con fechas relativas y avisos, y la retención de 0 días (el video se borra al publicarse).
 
 **Arquitectura:** el nuevo paquete `packages/platforms` contiene los conectores de red. Son funciones puras sobre un `fetch` inyectado y no dependen de Firebase:
 - `OAuthProvider` por proveedor: `meta`, `youtube`, `tiktok`.
@@ -64,6 +64,16 @@
     - **V1:** según la documentación de Meta, lo publicado con la app en modo desarrollo solo lo ven las personas con rol en la app. Facebook e Instagram se usan por API solo con la app en modo Live; mientras tanto, modo manual.
     - **V2:** sin auditoría, TikTok solo publica como `SELF_ONLY` y en cuentas privadas, así que TikTok queda en modo manual hasta la auditoría. La bandeja de borradores (`video.upload`) no se implementa.
     - **V3:** queda resuelta con el punto 8.
+12. **Importar un Principal desde YouTube (D18):**
+    - Solo se acepta un video del canal conectado (`snippet.channelId` igual al de la sesión).
+    - El post importado usa el id `yt-{videoId}`, así importarlo dos veces falla con un mensaje claro en vez de duplicarlo.
+    - Un video programado o privado deja las referencias de sus Hijas en espera. Se activan cuando pasa `publishAt`: un campo `awaitingPublicationUntil` y la revisión horaria de `encolarPendientes`.
+13. **Promoción del Principal (D19, spec 6.10):**
+    - Los avisos de vencido salen de `encolarPendientes`, así no se agrega una cuarta tarea programada y el plan sigue dentro de las 3 gratuitas de Cloud Scheduler.
+    - Una Hija cumple el siguiente short pendiente la primera vez que alguno de sus destinos queda `publicada`.
+14. **Retención de 0 días (D17):**
+    - `retentionDays` admite 0 y vale 0 por defecto.
+    - Con 0, `alCambiarDestino` purga el original en cuanto todos los destinos que lo usan quedan terminales; `limpiarRetencion` sigue como red de seguridad diaria.
 
 ## Foco de revisión
 
@@ -82,6 +92,7 @@
    - `signed_request` de Meta y los tokens de `/api/media/` se verifican con HMAC y caducan.
 
    Pruebas en las Tareas 8, 10 y 13.
+6. **Fecha base de la promoción que cambia** (se mueve el Principal o se publica antes de lo previsto): los `dueAt` no editados se recalculan, los editados se conservan y un pendiente ya avisado no vuelve a avisar salvo que su fecha cambie. Pruebas en las Tareas 16 y 17.
 
 ## Estructura de archivos
 
@@ -1552,7 +1563,253 @@ git commit -m "feat(web): publicación de TikTok según sus pautas y modo por re
 
 ---
 
-### Tarea 16: E2E de la fase 2B, guía, despliegue y README
+### Tarea 16: Promoción del Principal y retención de 0 días en core
+
+**Archivos:**
+- Crear: `packages/core/src/publicaciones/promocion.ts`, `promocion.test.ts`
+- Modificar:
+  - `packages/core/src/ajustes.ts`: `retentionDays` 0–90, por defecto 0; `promotionTemplate`.
+  - `packages/core/src/archivos/retencion.ts` y `publicaciones/{tipos,conversion,entrada,avisos}.ts` (+ pruebas).
+
+**Interfaces:**
+- Produce:
+  ```ts
+  export type TipoPromocion = 'short' | 'comunidad' | 'exposicion';
+  export const ETIQUETAS_TIPO_PROMOCION: Record<TipoPromocion, string>; // 'Short', 'Comunidad', 'Exposición'
+  export interface PlantillaPromocion { type: TipoPromocion; title: string; offsetDays: number }
+  export const PLANTILLA_PROMOCION_POR_DEFECTO: PlantillaPromocion[];
+  //   Short 1 (+1), Short 2 (+3), Short 3 (+5), Post en Comunidad (+2), Exposición en medios propios (0)
+  export interface ItemPromocion {
+    id: string; type: TipoPromocion; title: string; offsetDays: number; dueAt: Date | null; dueAtEdited: boolean;
+    status: 'pendiente' | 'hecho'; hijaId?: string; note?: string; notifiedAt?: Date;
+  }
+  // Publicacion: + origin?: 'omnistream' | 'youtube_importado'; promotion?: { items: ItemPromocion[] }; awaitingPublicationUntil?: Date
+  export function fechaBasePromocion(principal: Pick<Publicacion, 'scheduledAt'>, youtube?: Pick<Destino, 'remote' | 'scheduledAt'>): Date | null;
+  export function crearPromocion(plantilla: readonly PlantillaPromocion[], base: Date | null, nuevoId: () => string): ItemPromocion[];
+  export function recalcularFechas(items: readonly ItemPromocion[], base: Date | null): ItemPromocion[];
+  export function asignarHija(items: readonly ItemPromocion[], hijaId: string): ItemPromocion[];
+  export function vencidosSinAviso(items: readonly ItemPromocion[], ahora: Date): ItemPromocion[];
+  export function proximos(items: readonly ItemPromocion[], ahora: Date, dias?: number): ItemPromocion[]; // por defecto 7
+  export function avisoPromocion(datos: { postId: string; tituloPrincipal: string; item: Pick<ItemPromocion, 'title'> }): Aviso;
+  // TipoAviso: + 'promocion'
+  export const itemPromocionSchema; // para la acción actualizarPromocion
+  // accionPublicacionSchema: + { accion: 'actualizarPromocion', postId, items } y { accion: 'importarYoutube', url }
+  ```
+
+**Valores:**
+- **`fechaBasePromocion`:** `youtube.remote.publishedAt ?? youtube.scheduledAt ?? principal.scheduledAt ?? null`.
+- **`dueAt`:** `base + offsetDays` días; con base `null`, queda `null`.
+- **`recalcularFechas`:** cambia solo los `dueAtEdited: false`. Si cambia el `dueAt` de un pendiente, borra su `notifiedAt`.
+- **`asignarHija`:** marca `hecho` el primer `short` pendiente sin `hijaId` y le asigna esa Hija. Si la Hija ya está asignada, no cambia nada.
+- **`avisoPromocion`:** `{ tipo: 'promocion', titulo: 'Promoción pendiente', cuerpo: '{item.title} · {tituloPrincipal}', enlace: '/publicaciones/{postId}' }`.
+- **`calcularPurga` con `retentionDays: 0`:** la fecha de purga es la del último destino que quedó terminal.
+- **Mensaje de ajustes:** `'La retención debe estar entre 0 y 90 días.'`.
+
+- [ ] **Paso 1: Escribir las pruebas que fallan**
+
+`promocion.test.ts`:
+- `'la plantilla por defecto crea 5 pendientes con fechas relativas a la base'`: con base `2026-10-10T15:00Z`, Short 1 vence `2026-10-11T15:00Z` y la exposición `2026-10-10T15:00Z`.
+- `'sin fecha base los pendientes quedan sin fecha'`.
+- `'recalcular mueve las fechas no editadas, conserva las editadas y rearma el aviso'`.
+- `'una Hija cumple el siguiente short y no se asigna dos veces'`.
+- `'vencidosSinAviso excluye los hechos, los futuros y los ya avisados'`.
+- `'proximos devuelve los pendientes de los próximos 7 días'`.
+- `'la fecha base prefiere la publicación real en YouTube'`.
+
+Otras pruebas:
+- `avisos.test.ts`: `avisoPromocion` produce el aviso descrito.
+- `ajustes.test.ts`: 0 es válido, 91 es inválido con el mensaje, y el valor por defecto es 0 con `PLANTILLA_PROMOCION_POR_DEFECTO`.
+- `retencion.test.ts`: con `retentionDays: 0`, la purga es el instante del último destino terminal.
+- `entrada.test.ts`: acepta `importarYoutube` con URL y `actualizarPromocion` con items válidos, y rechaza un `type` desconocido.
+- `conversion.test.ts`: `leerPublicacion` convierte `promotion.items[].dueAt` y `notifiedAt`.
+
+- [ ] **Paso 2: Ejecutar y verificar que fallan**
+
+Run: `pnpm vitest run --project core`
+Expected: FAIL.
+
+- [ ] **Paso 3: Implementar.**
+
+- [ ] **Paso 4: Ejecutar y verificar que pasan**
+
+Run: `pnpm vitest run --project core && pnpm -r typecheck`
+Expected: PASS. La web puede requerir ajustar el `min` del campo de retención: se hace en la Tarea 18.
+
+- [ ] **Paso 5: Commit**
+
+```bash
+git add packages/core
+git commit -m "feat(core): promoción del Principal y retención de 0 días"
+```
+
+---
+
+### Tarea 17: Funciones: importar desde YouTube, promoción y purga inmediata
+
+**Archivos:**
+- Crear: `functions/src/publicacion/acciones/{importar,promocion}.ts`, `pruebas/integracion/src/funciones/{importarYoutube,promocion}.test.ts`
+- Modificar:
+  - `packages/platforms/src/youtube.ts` (+ `obtenerVideo` y su prueba de contrato).
+  - `functions/src/publicacion/{publicaciones,alCambiarDestino,encolarPendientes,limpiarRetencion}.ts` y `functions/src/publicacion/acciones/guardar.ts`.
+
+**Interfaces:**
+- Consume: Tareas 4, 9 y 16.
+- Produce:
+  ```ts
+  // platforms/youtube.ts
+  export interface VideoYoutube { id: string; channelId: string; title: string; description: string;
+    privacy: 'public' | 'unlisted' | 'private'; publishAt?: Date; publishedAt?: Date }
+  export async function obtenerVideo(videoId: string, ctx: ContextoLectura): Promise<VideoYoutube | null>; // GET videos?part=snippet,status&id=
+  // functions
+  export async function importarYoutube(url: string, deps: DependenciasAccion & { sesion(red: Platform): Promise<SesionProveedor>; http: Http }): Promise<RespuestaPublicaciones>;
+  export async function actualizarPromocion(postId: string, items: ItemPromocion[], deps: DependenciasAccion): Promise<RespuestaPublicaciones>;
+  export async function activarReferenciasDeHijas(db: Firestore, principalId: string, deps: DependenciasCambio, idEvento: string): Promise<void>; // extraída de reaccionarACambio
+  export async function avisarPromocion(db: Firestore, notificar: Notificador, ahora: Date): Promise<number>;
+  export async function purgarSiTerminal(db: Firestore, bucket: Bucket, assetId: string, ahora: Date): Promise<boolean>; // de limpiarRetencion
+  ```
+
+**Comportamiento:**
+- **`importarYoutube`:**
+  - Errores, en orden:
+    - `analizarUrlPublica('youtube', url)` no da id → `invalid-argument` `'La URL no corresponde a un video de YouTube.'`.
+    - YouTube sin conexión → `failed-precondition` `'Conecta YouTube en Ajustes > Conexiones para importar videos.'`.
+    - Video inexistente → `not-found` `'No se encontró ese video en YouTube.'`.
+    - Video de otro canal → `failed-precondition` `'El video no pertenece a tu canal conectado.'`.
+  - Crea con `create()` el post `posts/yt-{id}`:
+    - `kind: 'principal'`, `origin: 'youtube_importado'`, `title` y `base: { text: description, hashtags: [] }`.
+    - `scheduledAt: publishAt ?? publishedAt`.
+    - `promotion` a partir de `settings/app.promotionTemplate`, o la plantilla por defecto.
+    - `awaitingPublicationUntil`: `publishAt` si es futuro.
+  - Crea el destino `youtube`:
+    - `format: 'video_largo'`, `status: 'publicada'`, `publishMode: 'manual'`, `parentRef: { status: 'no_aplica' }`.
+    - `remote: { id, url: urlVideoYoutube(id), publishedAt: publishAt ?? publishedAt ?? ahora }`.
+  - Si el post ya existe (ALREADY_EXISTS) → `already-exists` `'Ese video ya está en OmniStream.'`.
+  - Requiere el alcance `youtube.readonly`, que ya está en `ALCANCES_YOUTUBE`.
+- **Referencias en espera:** `principalPublicado` exige además que `remote.publishedAt <= ahora`. `encolarPendientesAhora` busca los Principales con `awaitingPublicationUntil <= ahora`, llama a `activarReferenciasDeHijas` (id de evento `espera-{postId}`) y borra el campo.
+- **`actualizarPromocion`:**
+  - Solo para `kind: 'principal'`; si no → `failed-precondition` `'Solo un video principal tiene lista de promoción.'`.
+  - Reemplaza los items. Conserva el `notifiedAt` de un item cuyo `dueAt` no cambió y recalcula el `dueAt` de los no editados con la fecha base actual.
+- **`guardarPublicacion`:** un Principal nuevo recibe `promotion` desde la plantilla.
+- **`reaccionarACambio`:**
+  - Si cambia el destino `youtube` de un Principal, llama a `recalcularFechas`.
+  - Cuando un destino de una Hija pasa a `publicada`, ejecuta `asignarHija` en una transacción sobre su Principal.
+  - Con `retentionDays === 0` y `assetId`, llama a `purgarSiTerminal`.
+- **`avisarPromocion`:** corre en `encolarPendientesAhora`. Por cada `vencidosSinAviso`, `notificar('promocion-{postId}-{itemId}', avisoPromocion(...))` y fija `notifiedAt` en una transacción.
+
+- [ ] **Paso 1: Escribir las pruebas que fallan**
+
+- Contrato (`youtube.test.ts`): `'obtenerVideo lee snippet y status'` (con `publishAt`) y `'un id inexistente devuelve null'`.
+- Integración, con sesión y `http` falsos:
+  - `'importar un video publicado crea el Principal con su lista de promoción'`: 5 items, `dueAt` relativos a `publishedAt`.
+  - `'importar un video programado deja sus Hijas en espera hasta publishAt'`: a `publishAt − 1 min`, `encolarPendientesAhora` no activa la referencia; a `publishAt + 1 min`, sí, y borra `awaitingPublicationUntil`.
+  - `'importar dos veces el mismo video falla sin duplicar'`, `'un video de otro canal se rechaza'` y `'sin conexión de YouTube pide conectarla'`.
+  - `'una Hija publicada cumple el siguiente short del Principal'`.
+  - `'mover el Principal recalcula las fechas no editadas'`.
+  - `'un pendiente vencido avisa una sola vez'`: dos ejecuciones dan un solo documento en `notifications`.
+  - `'con retención 0 el original se purga al publicarse la última red'`: `assets/{id}.status === 'purgado'` sin esperar a `limpiarRetencion`.
+  - `'actualizarPromocion conserva el aviso de un item sin cambio de fecha'`.
+
+- [ ] **Paso 2: Ejecutar y verificar que fallan**
+
+Run: `pnpm vitest run --project platforms && pnpm test:integracion`
+Expected: FAIL.
+
+- [ ] **Paso 3: Implementar.**
+
+- [ ] **Paso 4: Ejecutar y verificar que pasan**
+
+Run: `pnpm --filter @omnistream/functions typecheck && pnpm vitest run --project platforms && pnpm test:integracion`
+Expected: PASS.
+
+- [ ] **Paso 5: Commit**
+
+```bash
+git add packages/platforms functions pruebas/integracion
+git commit -m "feat(functions): importar desde YouTube, promoción con avisos y purga inmediata"
+```
+
+---
+
+### Tarea 18: Web: importar desde YouTube, panel de promoción y ajustes
+
+**Archivos:**
+- Crear:
+  - `apps/web/src/components/publicaciones/{ImportarYoutube,PanelPromocion}.tsx` (+ pruebas).
+  - `apps/web/src/components/ajustes/PlantillaPromocion.tsx` (+ prueba).
+  - `apps/web/src/lib/publicaciones/promocion.ts` (`usePromocionesPendientes`).
+- Modificar:
+  - `apps/web/src/app/(app)/crear/page.tsx`, `apps/web/src/components/publicaciones/DetallePublicacion.tsx`.
+  - `apps/web/src/components/pendientes/ListaPendientes.tsx`, `apps/web/src/app/(app)/pendientes/page.tsx`.
+  - `apps/web/src/components/ajustes/FormularioAjustes.tsx`, `apps/web/src/app/(app)/ajustes/general/page.tsx`.
+
+**Interfaces:**
+- Consume: Tareas 14, 16 y 17.
+- Produce:
+  ```ts
+  export function ImportarYoutube(props: { conectado: boolean; alImportar(url: string): Promise<void> }): JSX.Element;
+  export function PanelPromocion(props: { publicacion: Publicacion; hijas: Publicacion[]; zona: string; ahora?: () => Date;
+    alGuardar(items: ItemPromocion[]): Promise<void> }): JSX.Element;
+  export function PlantillaPromocion(props: { valores: PlantillaPromocion[]; alCambiar(v: PlantillaPromocion[]): void }): JSX.Element;
+  export function usePromocionesPendientes(ahora?: Date): { postId: string; tituloPrincipal: string; item: ItemPromocion; vencido: boolean }[];
+  ```
+
+**Textos y comportamiento:**
+- **`ImportarYoutube`** (en `/crear`, sobre el editor; `<section aria-label="Importar desde YouTube">`):
+  - Campo "URL del video de YouTube" y botón "Importar".
+  - Con `conectado: false`: "Conecta YouTube en Ajustes > Conexiones para importar videos." con enlace, y sin campo.
+  - Al importar con éxito, lleva a `/publicaciones/{id}`.
+- **`PanelPromocion`** (solo en el detalle de un Principal; `<section aria-label="Promoción">`):
+  - Título "Promoción" y progreso "{hechos} de {total}".
+  - Por item: casilla con el título, la etiqueta del tipo, la fecha en la zona con un campo editable (editar marca `dueAtEdited`), "Restablecer fecha" si fue editada, nota opcional y, en shorts cumplidos, un enlace a la Hija.
+  - Un vencido muestra "Vencido" en color de alerta.
+  - Botones "Agregar pendiente" y "Quitar", y "Guardar promoción" para guardar.
+  - Comunidad lleva la ayuda "YouTube no permite publicar en Comunidad por API: hazlo en YouTube Studio y márcalo aquí."
+  - Un Principal importado muestra "Importado de YouTube" con el enlace al video.
+- **`/pendientes`:** nueva sección "Promoción" con los vencidos y los de los próximos 7 días, ordenados por `dueAt`, cada uno con enlace al Principal. `usePromocionesPendientes` consulta `posts` con `kind == 'principal'` y filtra en el cliente.
+- **Ajustes generales:**
+  - "Días de retención" admite 0, con la ayuda "0 = borrar el video en cuanto se publica en todas sus redes."
+  - Tarjeta "Plantilla de promoción": lista editable de tipo, título y días desde la publicación. Se guarda en `settings/app.promotionTemplate`.
+
+- [ ] **Paso 1: Escribir las pruebas que fallan**
+
+`ImportarYoutube`:
+- `'sin conexión pide conectar YouTube'`.
+- `'importa la URL'`: `alImportar` recibe la URL sin espacios de los extremos.
+
+`PanelPromocion`:
+- `'muestra el progreso y marca un vencido'`.
+- `'editar la fecha marca dueAtEdited y Restablecer la quita'`.
+- `'marcar hecho y guardar envía los items'`.
+- `'agregar y quitar pendientes'`.
+- `'un short cumplido enlaza a su Hija'`.
+
+Otras:
+- `PlantillaPromocion`: `'edita la plantilla'`.
+- `ListaPendientes`: `'la sección Promoción lista vencidos y próximos'`.
+- `FormularioAjustes`: `'acepta 0 días de retención'`.
+
+- [ ] **Paso 2: Ejecutar y verificar que fallan**
+
+Run: `pnpm vitest run --project web`
+Expected: FAIL.
+
+- [ ] **Paso 3: Implementar.**
+
+- [ ] **Paso 4: Ejecutar y verificar que pasan**
+
+Run: `pnpm --filter @omnistream/web lint && pnpm vitest run --project web && pnpm --filter @omnistream/web typecheck && pnpm --filter @omnistream/web build`
+Expected: PASS.
+
+- [ ] **Paso 5: Commit**
+
+```bash
+git add apps/web
+git commit -m "feat(web): importar desde YouTube, promoción del Principal y plantilla"
+```
+
+---
+
+### Tarea 19: E2E de la fase 2B, guía, despliegue y README
 
 **Archivos:**
 - Crear: `apps/web/e2e/fase2b.spec.ts`
@@ -1588,6 +1845,12 @@ test('una red conectada pasa a modo API y lo conserva', async ({ page }) => {
   // entrar → /ajustes/conexiones → región YouTube muestra 'Mi canal' → selectOption('api') → recargar → el selector vale 'api'
 });
 
+test('un Principal con promoción vencida aparece en Pendientes y se marca hecho', async ({ page }) => {
+  // admin: posts/yt-e2e (kind 'principal', origin 'youtube_importado', promotion con un item 'Post en Comunidad' vencido ayer)
+  // → entrar → /pendientes muestra la sección Promoción con 'Post en Comunidad' y 'Vencido'
+  // → clic al enlace → /publicaciones/yt-e2e → marcar la casilla → Guardar promoción → progreso '1 de 1'
+});
+
 test('el retorno de OAuth sin state válido vuelve a Conexiones con el error', async ({ page }) => {
   // entrar → page.goto('/api/conexiones/retorno?state=falso&code=x') → URL /ajustes/conexiones
   // → toast 'La conexión venció o no es válida. Vuelve a intentarlo.'
@@ -1598,13 +1861,14 @@ test('el retorno de OAuth sin state válido vuelve a Conexiones con el error', a
 - [ ] **Paso 2: Ejecutar y verificar**
 
 Run: `pnpm test:e2e`
-Expected: PASS (fases 1, 2A y 2B). Si una prueba falla, se corrige la causa en la tarea correspondiente.
+Expected: PASS (fases 1, 2A y 2B, con la prueba de promoción). Si una prueba falla, se corrige la causa en la tarea correspondiente.
 
 - [ ] **Paso 3: Actualizar la guía, el despliegue y el README**
 
 `docs/configuracion.md`:
 - **"Ejecutar en local":** `scripts/secretos-demo.cjs` crea `functions/.secret.local` con valores de demostración. Los conectores no llaman a las redes en local: conectar una red real requiere el proyecto de producción.
 - **Nueva sección "Producción: fase 2B"**, en orden:
+  0. **Costos (D17).** En Google Cloud > Facturación > Presupuestos y alertas, crea un presupuesto mensual de 1 USD con alertas al 50 %, 90 % y 100 %. Ejecuta `firebase functions:artifacts:setpolicy` para que se borren las imágenes antiguas de las funciones. En Ajustes, deja la retención en 0 días.
   1. **URL pública.** El dominio de Vercel (o el propio) es `URL_PUBLICA`. En Vercel, agrega `FUNCIONES_URL=https://us-central1-{proyecto}.cloudfunctions.net` y vuelve a desplegar.
   2. **Parámetros.** En GitHub (Settings > Secrets and variables > Actions > Variables), crea `URL_PUBLICA`, `META_APP_ID`, `META_CONFIG_ID`, `GOOGLE_CLIENT_ID` y `TIKTOK_CLIENT_KEY`. El flujo "Desplegar" los escribe en `functions/.env.{proyecto}`.
   3. **Secretos.** Con `firebase functions:secrets:set`:

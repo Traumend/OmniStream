@@ -36,11 +36,14 @@ Toda la infraestructura corre en Firebase / Google Cloud. Las redes cuya API aú
 | D14 | La aplicación web se publica en Vercel (con vista previa por cada pull request). Firebase sigue como backend: Auth, Firestore, Storage y Cloud Functions. |
 | D15 | Las acciones del servidor son Cloud Functions, no rutas de Next.js: una función invocable por dominio (`publicaciones`, `conexiones`, `ia`) y funciones HTTP solo para las URL que llaman las redes. Vercel sirve únicamente la interfaz y no guarda credenciales de servicio. |
 | D16 | La fase 2 se divide en 2A (publicación asistida, de punta a punta en modo manual) y 2B (conectores por API), cada una con su plan. |
+| D17 | Se usa el plan Blaze con alerta de presupuesto de 1 USD y política de limpieza de imágenes de funciones; el costo esperado es 0. Los videos no se guardan: el original se borra en cuanto todas sus redes quedan publicadas (retención de 0 días por defecto). |
+| D18 | Un video Principal de YouTube puede importarse desde YouTube (subido o programado allá) sin pasar el archivo por OmniStream: se guarda solo su información. |
+| D19 | El objetivo es dar exposición al video Principal: cada Principal tiene una lista de promoción (shorts, publicación en Comunidad y exposición por medios propios) con fechas relativas editables y avisos al vencer. Las fechas clave sugeridas por IA (efemérides relacionadas con el tema) llegan en la fase 4. |
 
 ### 2.2 Supuestos de diseño (aceptados en la revisión por secciones)
 
 - La zona horaria del usuario se configura una sola vez; todas las fechas se guardan en UTC.
-- La retención por defecto es de 7 días después de que todas las redes de destino que usan un archivo llegan a un estado terminal.
+- La retención por defecto es de 0 días: el original se borra en cuanto todas las redes de destino que lo usan llegan a un estado terminal (D17). Se puede subir en Ajustes.
 - El tamaño máximo de subida es de 10 GB, configurable.
 - No hay ambiente de pruebas intermedio: un proyecto de Firebase de producción más emuladores locales.
 
@@ -218,7 +221,7 @@ Notación de tipos en TypeScript. `Platform = 'facebook' | 'instagram' | 'youtub
 // settings/app
 {
   timezone: string;            // IANA, p. ej. "America/Mexico_City"
-  retentionDays: number;       // por defecto 7
+  retentionDays: number;       // por defecto 0 (0 a 90)
   maxUploadGb: number;         // por defecto 10
   ai: {
     keys: { anthropic?: KeyStatus; openai?: KeyStatus }; // KeyStatus = { status: 'valida' | 'invalida'; hint: string; validatedAt }
@@ -227,6 +230,7 @@ Notación de tipos en TypeScript. `Platform = 'facebook' | 'instagram' | 'youtub
     priceTable: Record<string /*modelo*/, { inputPerMTok: number; outputPerMTok: number; cacheReadPerMTok?: number }>;
   };
   fcmTokens: string[];         // notificaciones push
+  promotionTemplate: { type: 'short' | 'comunidad' | 'exposicion'; title: string; offsetDays: number }[]; // plantilla de la lista de promoción
 }
 
 // settings/profile
@@ -425,6 +429,35 @@ type NormalizedMetrics = {
 - `posts`: `scheduledAt` (calendario, incluye las ideas); `parentId` (Hijas de un Principal); `assetId` (retención). Son índices simples.
 - `trends`: `status` + `discoveredAt`. `insights`: `status` + `createdAt`. `aiRuns`: `createdAt` (consumo mensual).
 
+### 6.10 Promoción del video Principal
+
+```ts
+// posts/{postId} con kind 'principal': campos adicionales
+{
+  origin: 'omnistream' | 'youtube_importado';   // importado: sin assetId; su destino youtube nace 'publicada' con remote
+  promotion: {
+    items: {
+      id: string;
+      type: 'short' | 'comunidad' | 'exposicion';
+      title: string;                 // p. ej. "Short 1", "Post en Comunidad", "Historia de Instagram"
+      offsetDays: number;            // relativo a la publicación del Principal
+      dueAt: Timestamp | null;       // calculada; si el usuario la edita, deja de seguir al Principal (dueAtEdited: true)
+      dueAtEdited: boolean;
+      status: 'pendiente' | 'hecho';
+      hijaId?: string;               // en 'short': la Hija que lo cumple
+      note?: string;
+      notifiedAt?: Timestamp;        // aviso de vencido ya enviado
+    }[];
+  };
+}
+```
+
+- **Fecha base:** la publicación del Principal en YouTube: `remote.publishedAt`, o `scheduledAt` mientras está programado. Si la fecha base cambia, se recalculan los `dueAt` no editados.
+- **Plantilla por defecto** (`settings/app.promotionTemplate`): Short 1 (+1 día), Short 2 (+3), Short 3 (+5), Post en Comunidad (+2), Exposición en medios propios (0). Se edita en Ajustes y en cada Principal.
+- **Shorts:** una Hija vinculada al Principal cumple el siguiente `short` pendiente cuando se publica (o se asigna a mano). Comunidad y exposición se marcan a mano: YouTube no permite publicar en Comunidad por API.
+- **Avisos:** `encolarPendientes` (cada hora) envía un push por cada pendiente vencido, una sola vez (`notifiedAt`). `/pendientes` lista los pendientes de promoción vencidos o de los próximos 7 días.
+- **Importar de YouTube:** con la URL o el id del video y la conexión de YouTube (lectura), `videos.list` (`part=snippet,status`) da título, `publishAt` o `publishedAt` y privacidad. Mientras el video sea privado con `publishAt` futuro, las referencias de sus Hijas esperan (`en_espera`) hasta esa hora.
+
 ---
 
 ## 7. Flujo de publicación
@@ -507,7 +540,7 @@ Cada intento queda en `attempts`. Los fallos envían una notificación push.
 
 ### 7.7 Retención
 
-- Un archivo original se purga `retentionDays` días después de que todos los destinos que lo usan están en estado terminal (`publicada` o `cancelada`; un destino `fallida` con más de 30 días también se considera terminal).
+- Un archivo original se purga `retentionDays` días (0 por defecto: de inmediato, al cambiar el último destino) después de que todos los destinos que lo usan están en estado terminal (`publicada` o `cancelada`; un destino `fallida` con más de 30 días también se considera terminal).
 - Los derivados se purgan con su original. Los fotogramas y los metadatos se conservan; el archivo pasa a `purgado`.
 - Un archivo sin publicaciones asociadas se purga a los 30 días.
 - La interfaz muestra la fecha de purga y permite posponerla.
@@ -585,7 +618,10 @@ Maquetas de teléfono por red, lado a lado (una a la vez en pantallas angostas),
 
 `settings/profile` (sección 6.1). Se llena a mano o lo genera la IA a partir de una descripción libre (función invocable `ia`). Se incluye al inicio de cada petición junto con los aprendizajes activos.
 
-### 9.4 Copy por red (fase 4)
+### 9.4 Copy por red y fechas clave (fase 4)
+
+- **Fechas clave del Principal:** a partir del título y la descripción del Principal, la IA propone fechas relacionadas con su tema (por ejemplo, para un video sobre la independencia de México, el 15 y 16 de septiembre) como nuevos pendientes de exposición con su `dueAt`; el usuario los acepta uno por uno.
+
 
 - Una petición por red, en paralelo, cada una con su esquema:
   - YouTube: `{ title, description, tags }`, orientado a búsqueda.
@@ -731,7 +767,7 @@ Cada fase tendrá su propio plan de implementación. Una fase termina cuando se 
 |---|---|---|
 | 1. Fundación | Monorepo, CI, configuración de Firebase, acceso restringido, estructura de la interfaz (español, tema neoclásico), Ajustes generales, subida reanudable, `procesarArchivo`, biblioteca de archivos, reglas de seguridad. | Solo el correo permitido entra. Un video de 2 GB se sube, se reanuda tras cortar la conexión y muestra sus datos técnicos y 3 fotogramas. Las reglas impiden leer `secrets` desde el cliente. |
 | 2A. Publicación asistida | Modelo de publicaciones y destinos, editor básico (archivo, destinos, textos, campos de YouTube, hora, jerarquía), función `publicaciones`, cola y `publicarDestino` en modo manual, modo asistido con notificaciones push, referencia al Padre manual, calendario con arrastrar y soltar, retención, `/privacidad` con instrucciones de borrado de datos. | Una publicación programada a 4 redes en modo manual llega a `/pendientes` con notificación y se marca publicada con su URL. Mover una publicación en el calendario no la duplica. Una Hija publicada antes que su Principal recibe su referencia al publicarse este. |
-| 2B. Conectores | Conexiones con lectura y publicación separadas, OAuth de Meta, YouTube y TikTok, conectores de las 4 redes con publicación por etapas, `comentarReferencia`, `renovarSesiones`, `media`, interfaz de publicación de TikTok (7.4.1), borrado de datos de Meta. | Con una red conectada por API se publica de punta a punta. Las verificaciones V1 a V3 quedan resueltas. |
+| 2B. Conectores y promoción | Conexiones con lectura y publicación separadas, OAuth de Meta, YouTube y TikTok, conectores de las 4 redes con publicación por etapas, `comentarReferencia`, `renovarSesiones`, `media`, interfaz de publicación de TikTok (7.4.1), borrado de datos de Meta, importar un Principal desde YouTube, lista de promoción del Principal (6.10), retención de 0 días. | Con una red conectada por API se publica de punta a punta. Un Principal importado desde YouTube recibe su lista de promoción y avisos al vencer. Las verificaciones V1 a V3 quedan resueltas. |
 | 3. Smart Canvas | Pasos completos de creación, advertencias, zonas seguras, recorte con `generarRecorte`, ajustes por red, vista previa final. | Un video 16:9 recortado a 9:16 para TikTok y 1:1 para Facebook genera dos archivos distintos y cada red publica el suyo. Las advertencias del canvas coinciden con las validaciones del servidor. |
 | 4. IA de texto | Ajustes de IA, validación y cifrado de llaves, perfil de contenido, copy por red en paralelo, transcripción opcional, `aiRuns` y límite mensual. | Con una llave válida se generan versiones por red que respetan los límites y se aceptan una por una. Una llave inválida se detecta al guardarla. |
 | 5. Estadísticas | `sincronizarMetricas`, capturas diarias, seguidores, dashboard, análisis Padre/Hijo. | El dashboard muestra métricas reales de al menos una red conectada y el impulso estimado de un Principal con historial suficiente. |
