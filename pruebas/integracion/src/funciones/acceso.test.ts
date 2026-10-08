@@ -1,5 +1,12 @@
 import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth, GoogleAuthProvider, signInWithCredential, signOut, type Auth } from 'firebase/auth';
+import {
+  connectAuthEmulator,
+  getAuth,
+  GoogleAuthProvider,
+  signInWithCredential,
+  signOut,
+  type Auth,
+} from 'firebase/auth';
 import { afterAll, beforeAll, it } from 'vitest';
 import { expect } from 'vitest';
 

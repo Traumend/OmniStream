@@ -1,0 +1,30 @@
+import { ETIQUETAS_RED, type Platform } from './tipos';
+
+export type TipoAviso = 'pendiente_manual' | 'fallo' | 'referencia';
+
+export interface Aviso {
+  tipo: TipoAviso;
+  titulo: string;
+  cuerpo: string;
+  enlace: string; // ruta de la app
+}
+
+export function avisoDe(
+  tipo: TipoAviso,
+  datos: { postId: string; titulo: string; platform: Platform; error?: string },
+): Aviso {
+  const cuerpo = `${datos.titulo} · ${ETIQUETAS_RED[datos.platform]}`;
+  switch (tipo) {
+    case 'pendiente_manual':
+      return { tipo, titulo: 'Publicación pendiente', cuerpo, enlace: `/pendientes/${datos.postId}/${datos.platform}` };
+    case 'fallo':
+      return {
+        tipo,
+        titulo: 'Falló una publicación',
+        cuerpo: datos.error ? `${cuerpo}: ${datos.error}` : cuerpo,
+        enlace: `/publicaciones/${datos.postId}`,
+      };
+    case 'referencia':
+      return { tipo, titulo: 'Referencia al video principal pendiente', cuerpo, enlace: '/pendientes' };
+  }
+}
