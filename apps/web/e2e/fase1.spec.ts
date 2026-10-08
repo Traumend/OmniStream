@@ -18,7 +18,8 @@ test('rechaza un correo no permitido', async ({ page }) => {
 test('sube un video y muestra sus datos y 3 fotogramas', async ({ page }) => {
   await page.goto('/entrar');
   await entrarComo(page, 'propietario@omnistream.test');
-  await expect(page).toHaveURL(/\/biblioteca$/);
+  await expect(page).toHaveURL(/\/calendario$/);
+  await page.goto('/biblioteca');
   await page.locator('input[type=file]').setInputFiles(fixtures.video);
   const tarjeta = page.getByRole('article', { name: 'video-vertical.mp4' });
   await expect(tarjeta.getByText('Listo')).toBeVisible({ timeout: 90_000 });
@@ -34,7 +35,7 @@ test('sube un video y muestra sus datos y 3 fotogramas', async ({ page }) => {
 test('guarda los ajustes generales', async ({ page }) => {
   await page.goto('/entrar');
   await entrarComo(page, 'propietario@omnistream.test');
-  await expect(page).toHaveURL(/\/biblioteca$/);
+  await expect(page).toHaveURL(/\/calendario$/);
   await page.goto('/ajustes/general');
   await page.getByLabel('Días de retención').fill('14');
   await page.getByRole('button', { name: 'Guardar' }).click();

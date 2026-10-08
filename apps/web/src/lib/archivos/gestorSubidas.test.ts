@@ -39,7 +39,8 @@ function crearTareaFalsa(): TareaFalsa {
   };
 }
 
-const archivo = (nombre: string, tipo: string, bytes: number) => new File([new Uint8Array(bytes)], nombre, { type: tipo });
+const archivo = (nombre: string, tipo: string, bytes: number) =>
+  new File([new Uint8Array(bytes)], nombre, { type: tipo });
 
 let tarea: TareaFalsa;
 let deps: { [K in keyof DependenciasSubida]: ReturnType<typeof vi.fn> & DependenciasSubida[K] };
@@ -85,7 +86,11 @@ it('crea el documento en estado subiendo y luego sube', async () => {
 it('reporta el progreso y mantiene la subida activa', async () => {
   await gestor.iniciar(archivo('clip.mp4', 'video/mp4', 100), 10);
   tarea.emitirProgreso(50, 100);
-  expect(gestor.obtenerEstado().get('a1')).toMatchObject({ bytesTransferidos: 50, bytesTotales: 100, estado: 'subiendo' });
+  expect(gestor.obtenerEstado().get('a1')).toMatchObject({
+    bytesTransferidos: 50,
+    bytesTotales: 100,
+    estado: 'subiendo',
+  });
   expect(gestor.activas().has('a1')).toBe(true);
 });
 

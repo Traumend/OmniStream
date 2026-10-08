@@ -12,7 +12,7 @@ export default function Entrar() {
   const [entrando, setEntrando] = useState(false);
 
   useEffect(() => {
-    if (sesion.estado === 'autenticado') router.replace('/biblioteca');
+    if (sesion.estado === 'autenticado') router.replace('/calendario');
   }, [sesion.estado, router]);
 
   const entrar = async () => {

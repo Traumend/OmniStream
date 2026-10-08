@@ -84,7 +84,13 @@ export function crearGestorSubidas(deps: DependenciasSubida): GestorSubidas {
       const metadatos = await deps.leerMetadatosLocales(archivo, validacion.tipo).catch((): MetadatosLocales => ({}));
       const definidos = Object.fromEntries(Object.entries(metadatos).filter(([, v]) => v !== undefined));
       // Se registra antes de crear el documento para que la tarjeta nunca aparezca como interrumpida.
-      registrar({ assetId: id, nombre: archivo.name, bytesTransferidos: 0, bytesTotales: archivo.size, estado: 'subiendo' });
+      registrar({
+        assetId: id,
+        nombre: archivo.name,
+        bytesTransferidos: 0,
+        bytesTotales: archivo.size,
+        estado: 'subiendo',
+      });
       try {
         await deps.crearDocumento({
           id,
@@ -104,7 +110,9 @@ export function crearGestorSubidas(deps: DependenciasSubida): GestorSubidas {
 
       const tarea = deps.subir(rutaOriginal(id), archivo, validacion.mime);
       tareas.set(id, tarea);
-      tarea.alProgresar((transferidos, total) => actualizar(id, { bytesTransferidos: transferidos, bytesTotales: total }));
+      tarea.alProgresar((transferidos, total) =>
+        actualizar(id, { bytesTransferidos: transferidos, bytesTotales: total }),
+      );
       tarea.terminado.then(
         () => actualizar(id, { estado: 'completada', bytesTransferidos: archivo.size }),
         () => {

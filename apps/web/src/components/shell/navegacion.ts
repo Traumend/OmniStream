@@ -17,7 +17,7 @@ export interface ItemNavegacion {
   fase: number;
 }
 
-export const FASE_ACTUAL = 1;
+export const FASE_ACTUAL = 2;
 
 export const NAV_LATERAL: ItemNavegacion[] = [
   { etiqueta: 'Calendario', ruta: '/calendario', icono: CalendarDays, fase: 2 },

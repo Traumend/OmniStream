@@ -14,7 +14,11 @@ export function crearDependenciasFirebase(): DependenciasSubida {
       const tarea = uploadBytesResumable(ref(obtenerFirebase().storage, ruta), archivo, { contentType: mime });
       return {
         alProgresar: (cb) => {
-          tarea.on('state_changed', (instantanea) => cb(instantanea.bytesTransferred, instantanea.totalBytes), () => {});
+          tarea.on(
+            'state_changed',
+            (instantanea) => cb(instantanea.bytesTransferred, instantanea.totalBytes),
+            () => {},
+          );
         },
         pausar: () => tarea.pause(),
         reanudar: () => tarea.resume(),

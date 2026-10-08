@@ -25,5 +25,11 @@ it('define la barra superior', () => {
 });
 
 it('marca disponibles solo las secciones de la fase actual o anteriores', () => {
-  expect(NAV_LATERAL.filter((i) => estaDisponible(i)).map((i) => i.ruta)).toEqual(['/biblioteca', '/ajustes/general']);
+  expect(NAV_LATERAL.filter((i) => estaDisponible(i)).map((i) => i.ruta)).toEqual([
+    '/calendario',
+    '/crear',
+    '/pendientes',
+    '/biblioteca',
+    '/ajustes/general',
+  ]);
 });

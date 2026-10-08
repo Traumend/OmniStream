@@ -14,9 +14,7 @@ export interface UsuarioSesion {
 }
 
 export type EstadoSesion =
-  | { estado: 'cargando' }
-  | { estado: 'anonimo'; mensaje?: string }
-  | { estado: 'autenticado'; usuario: UsuarioSesion };
+  { estado: 'cargando' } | { estado: 'anonimo'; mensaje?: string } | { estado: 'autenticado'; usuario: UsuarioSesion };
 
 type ValorSesion = EstadoSesion & { entrar(): Promise<void>; salir(): Promise<void> };
 
@@ -33,7 +31,10 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     const { auth } = obtenerFirebase();
     return onIdTokenChanged(auth, async (usuario) => {
       if (!usuario) {
-        setSesion((previa) => ({ estado: 'anonimo', mensaje: previa.estado === 'anonimo' ? previa.mensaje : undefined }));
+        setSesion((previa) => ({
+          estado: 'anonimo',
+          mensaje: previa.estado === 'anonimo' ? previa.mensaje : undefined,
+        }));
         return;
       }
       const token = await usuario.getIdTokenResult();
