@@ -2,12 +2,16 @@
 
 import {
   describirProporcion,
+  fechaDePurgaVisible,
   formatearBytes,
   formatearDuracion,
+  formatearFechaHora,
   LOCALE,
   type Asset,
   type Fotograma,
 } from '@omnistream/core';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const VISTAS_VIDEO: { fotograma: Fotograma; titulo: string; alt: string }[] = [
@@ -38,13 +42,16 @@ export function DetalleArchivo({
   abierto,
   alCerrar,
   zonaHoraria,
+  alPosponer,
 }: {
   asset: Asset;
   urls: Partial<Record<Fotograma, string>>;
   abierto: boolean;
   alCerrar(): void;
   zonaHoraria?: string;
+  alPosponer?(): void;
 }) {
+  const purga = fechaDePurgaVisible(asset);
   const esVideo = asset.kind === 'video';
   const datos: [string, string][] = [
     ['Tipo', esVideo ? 'Video' : 'Imagen'],
@@ -77,7 +84,10 @@ export function DetalleArchivo({
         </DialogHeader>
 
         {asset.status === 'fallido' && asset.error && (
-          <p role="alert" className="rounded-[12px] border border-peligro/40 bg-peligro/5 px-4 py-3 text-sm text-peligro">
+          <p
+            role="alert"
+            className="rounded-[12px] border border-peligro/40 bg-peligro/5 px-4 py-3 text-sm text-peligro"
+          >
             {asset.error}
           </p>
         )}
@@ -90,6 +100,28 @@ export function DetalleArchivo({
           </div>
         ) : (
           <Vista url={urls.start} alt="Vista de la imagen" titulo="Imagen" />
+        )}
+
+        {(purga || asset.status === 'listo') && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-borde px-4 py-3 text-sm">
+            {purga ? (
+              <p className="text-texto-secundario">Se purgará el {formatearFechaHora(purga, zonaHoraria ?? 'UTC')}</p>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              {purga && alPosponer && (
+                <Button type="button" variant="outline" size="sm" onClick={alPosponer}>
+                  Posponer 7 días
+                </Button>
+              )}
+              {asset.status === 'listo' && (
+                <Button asChild size="sm" className="boton-oro">
+                  <Link href={`/crear?archivo=${asset.id}`}>Crear publicación</Link>
+                </Button>
+              )}
+            </div>
+          </div>
         )}
 
         <dl className="cifras grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">

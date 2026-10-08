@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { DetalleArchivo } from './DetalleArchivo';
 import { imagenLista, videoListo } from './fixtures';
@@ -39,4 +40,16 @@ it('muestra el error de un archivo fallido', () => {
     />,
   );
   expect(screen.getByRole('alert')).toHaveTextContent('No se pudo leer el archivo');
+});
+
+it('muestra la fecha de purga y permite posponerla', async () => {
+  const alPosponer = vi.fn();
+  render(<DetalleArchivo asset={{ ...videoListo, purgeAt: new Date('2026-10-20T12:00:00Z') }} urls={{}} abierto alCerrar={() => {}} zonaHoraria="UTC" alPosponer={alPosponer} />);
+  expect(screen.getByText(/Se purgará el/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Posponer 7 días' }));
+  expect(alPosponer).toHaveBeenCalled();
+});
+it('ofrece crear una publicación con el archivo listo', () => {
+  render(<DetalleArchivo asset={videoListo} urls={{}} abierto alCerrar={() => {}} zonaHoraria="UTC" alPosponer={() => {}} />);
+  expect(screen.getByRole('link', { name: 'Crear publicación' })).toHaveAttribute('href', `/crear?archivo=${videoListo.id}`);
 });

@@ -8,7 +8,13 @@ import { DetalleArchivo } from '@/components/biblioteca/DetalleArchivo';
 import { TarjetaArchivo } from '@/components/biblioteca/TarjetaArchivo';
 import { ZonaSubida } from '@/components/biblioteca/ZonaSubida';
 import { escucharAjustes } from '@/lib/ajustes/repositorio';
-import { eliminarArchivo, useArchivos, useUrlsFotogramas } from '@/lib/archivos/repositorio';
+import {
+  ArchivoEnUso,
+  eliminarArchivo,
+  posponerPurga,
+  useArchivos,
+  useUrlsFotogramas,
+} from '@/lib/archivos/repositorio';
 import { useSubidas } from '@/lib/archivos/useSubidas';
 
 function Tarjeta(props: Omit<Parameters<typeof TarjetaArchivo>[0], 'miniatura'>) {
@@ -18,7 +24,24 @@ function Tarjeta(props: Omit<Parameters<typeof TarjetaArchivo>[0], 'miniatura'>)
 
 function Detalle({ asset, alCerrar, zonaHoraria }: { asset: Asset; alCerrar(): void; zonaHoraria: string }) {
   const urls = useUrlsFotogramas(asset);
-  return <DetalleArchivo asset={asset} urls={urls} abierto alCerrar={alCerrar} zonaHoraria={zonaHoraria} />;
+  const posponer = async () => {
+    try {
+      await posponerPurga(asset);
+      toast.success('Purga pospuesta');
+    } catch {
+      toast.error('No se pudo posponer la purga.');
+    }
+  };
+  return (
+    <DetalleArchivo
+      asset={asset}
+      urls={urls}
+      abierto
+      alCerrar={alCerrar}
+      zonaHoraria={zonaHoraria}
+      alPosponer={() => void posponer()}
+    />
+  );
 }
 
 export default function Biblioteca() {
@@ -38,8 +61,9 @@ export default function Biblioteca() {
       await eliminarArchivo(aEliminar);
       toast.success('Archivo eliminado');
       setAEliminar(null);
-    } catch {
-      toast.error('No se pudo eliminar el archivo.');
+    } catch (error) {
+      toast.error(error instanceof ArchivoEnUso ? error.message : 'No se pudo eliminar el archivo.');
+      if (error instanceof ArchivoEnUso) setAEliminar(null);
     }
   };
 

@@ -24,6 +24,7 @@ export interface Asset {
   error?: string;
   createdAt: Date;
   purgeAt?: Date;
+  retainUntil?: Date;
 }
 
 export const rutaOriginal = (assetId: string) => `originales/${assetId}`;
