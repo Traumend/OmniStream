@@ -13,5 +13,24 @@ service cloud.firestore {
     match /assets/{id} {
       allow read, write: if esPropietario();
     }
+    // Publicaciones: solo lectura desde el cliente; las escriben las funciones.
+    match /posts/{postId} {
+      allow read: if esPropietario();
+      match /targets/{platform} {
+        allow read: if esPropietario();
+        match /attempts/{attemptId} {
+          allow read: if esPropietario();
+        }
+      }
+    }
+    match /{ruta=**}/targets/{platform} {
+      allow read: if esPropietario();
+    }
+    match /notifications/{id} {
+      allow read: if esPropietario();
+    }
+    match /connections/{platform} {
+      allow read: if esPropietario();
+    }
   }
 }

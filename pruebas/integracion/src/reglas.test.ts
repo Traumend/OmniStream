@@ -7,7 +7,7 @@ import {
   type RulesTestContext,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collectionGroup, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { getBytes, ref, uploadBytes } from 'firebase/storage';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
@@ -57,7 +57,25 @@ describe('Firestore', () => {
     await assertFails(setDoc(doc(propietario.firestore(), 'secrets/ai_anthropic'), { x: 1 }));
   });
   it('colecciones no declaradas están denegadas', async () => {
-    await assertFails(getDoc(doc(propietario.firestore(), 'posts/p1')));
+    await assertFails(getDoc(doc(propietario.firestore(), 'otra/x')));
+  });
+  it('propietario lee publicaciones, destinos, intentos, avisos y conexiones', async () => {
+    const db = propietario.firestore();
+    for (const ruta of ['posts/p1', 'posts/p1/targets/tiktok', 'posts/p1/targets/tiktok/attempts/a1', 'notifications/n1', 'connections/youtube']) {
+      await assertSucceeds(getDoc(doc(db, ruta)));
+    }
+  });
+  it('propietario consulta el grupo de colecciones targets', async () => {
+    await assertSucceeds(getDocs(query(collectionGroup(propietario.firestore(), 'targets'), where('status', '==', 'pendiente_manual'))));
+  });
+  it('nadie escribe publicaciones, destinos, avisos ni conexiones desde el cliente', async () => {
+    const db = propietario.firestore();
+    for (const ruta of ['posts/p1', 'posts/p1/targets/tiktok', 'notifications/n1', 'connections/youtube']) {
+      await assertFails(setDoc(doc(db, ruta), { x: 1 }));
+    }
+  });
+  it('usuario sin claim owner no lee publicaciones', async () => {
+    await assertFails(getDoc(doc(extrano.firestore(), 'posts/p1')));
   });
 });
 
