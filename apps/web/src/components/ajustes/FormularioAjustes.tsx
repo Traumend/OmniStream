@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { PlantillaPromocion } from './PlantillaPromocion';
 
 function MensajeError({ mensaje }: { mensaje?: string }) {
   return mensaje ? <p className="text-sm text-peligro">{mensaje}</p> : null;
@@ -68,6 +69,18 @@ function SelectorZona({
   );
 }
 
+// Primer mensaje de error dentro de un campo anidado (la plantilla es una lista de objetos).
+function primerMensaje(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const { message } = error as { message?: unknown };
+  if (typeof message === 'string') return message;
+  for (const valor of Object.values(error)) {
+    const encontrado = primerMensaje(valor);
+    if (encontrado) return encontrado;
+  }
+  return undefined;
+}
+
 export function FormularioAjustes({
   valores,
   zonas,
@@ -114,7 +127,7 @@ export function FormularioAjustes({
         <Input
           id="retencion"
           type="number"
-          min={1}
+          min={0}
           max={90}
           className="cifras h-11 rounded-[12px] bg-superficie-elevada text-base"
           aria-invalid={!!errors.retentionDays}
@@ -123,6 +136,7 @@ export function FormularioAjustes({
         <p className="text-sm text-texto-secundario">
           Días que se conservan los archivos originales después de publicarse en todas las redes.
         </p>
+        <p className="text-sm text-texto-secundario">0 = borrar el video en cuanto se publica en todas sus redes.</p>
         <MensajeError mensaje={errors.retentionDays?.message} />
       </div>
 
@@ -141,6 +155,19 @@ export function FormularioAjustes({
         />
         <p className="text-sm text-texto-secundario">Límite por archivo.</p>
         <MensajeError mensaje={errors.maxUploadGb?.message} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h2 className="font-heading text-lg">Plantilla de promoción</h2>
+        <p className="text-sm text-texto-secundario">
+          Lo que recibe cada video principal nuevo para darle exposición: shorts, comunidad y tus propios medios.
+        </p>
+        <Controller
+          control={control}
+          name="promotionTemplate"
+          render={({ field }) => <PlantillaPromocion valores={field.value} alCambiar={field.onChange} />}
+        />
+        <MensajeError mensaje={primerMensaje(errors.promotionTemplate)} />
       </div>
 
       <button

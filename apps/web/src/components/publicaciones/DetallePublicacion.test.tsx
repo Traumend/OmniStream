@@ -203,3 +203,49 @@ it('TikTok por API avisa que puede tardar unos minutos', () => {
     screen.getByText('TikTok puede tardar unos minutos en procesarla y mostrarla en tu perfil.'),
   ).toBeInTheDocument();
 });
+
+it('un Principal muestra su promoción y la guarda con actualizarPromocion', async () => {
+  const dueAt = new Date('2026-10-09T16:30:00Z');
+  const principal: Publicacion = {
+    ...publicacion,
+    kind: 'principal',
+    promotion: {
+      items: [
+        {
+          id: 'i1',
+          type: 'short',
+          title: 'Short 1',
+          offsetDays: 1,
+          dueAt,
+          dueAtEdited: false,
+          status: 'pendiente',
+          notifiedAt: dueAt,
+        },
+      ],
+    },
+  };
+  const { alAccion, user } = montar({ publicacion: principal, destinos: [destino('youtube', 'publicada')] });
+  const panel = screen.getByRole('region', { name: 'Promoción' });
+  await user.click(within(panel).getByRole('checkbox', { name: 'Short 1' }));
+  await user.click(within(panel).getByRole('button', { name: 'Guardar promoción' }));
+  expect(alAccion).toHaveBeenCalledWith({
+    accion: 'actualizarPromocion',
+    postId: 'p1',
+    items: [
+      {
+        id: 'i1',
+        type: 'short',
+        title: 'Short 1',
+        offsetDays: 1,
+        dueAt: '2026-10-09T16:30:00.000Z',
+        dueAtEdited: false,
+        status: 'hecho',
+      },
+    ],
+  });
+});
+
+it('una publicación independiente no muestra promoción', () => {
+  montar();
+  expect(screen.queryByRole('region', { name: 'Promoción' })).not.toBeInTheDocument();
+});

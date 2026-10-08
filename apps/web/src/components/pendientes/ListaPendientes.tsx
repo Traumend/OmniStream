@@ -2,10 +2,12 @@
 
 import {
   ETIQUETAS_RED,
+  ETIQUETAS_TIPO_PROMOCION,
   formatearFechaHora,
   REGLAS,
   textoReferencia,
   type Destino,
+  type ItemPromocion,
   type Platform,
   type Publicacion,
 } from '@omnistream/core';
@@ -22,6 +24,13 @@ interface ItemManual {
 interface ItemReferencia extends ItemManual {
   principal: Publicacion | null;
   urlPrincipal?: string;
+}
+
+interface ItemPromocionPendiente {
+  postId: string;
+  tituloPrincipal: string;
+  item: ItemPromocion;
+  vencido: boolean;
 }
 
 const porHora = (a: ItemManual, b: ItemManual) =>
@@ -45,15 +54,17 @@ function Encabezado({ publicacion, destino, zona }: ItemManual & { zona: string 
 export function ListaPendientes({
   manuales,
   referencias,
+  promociones = [],
   zona,
   alMarcarReferencia,
 }: {
   manuales: ItemManual[];
   referencias: ItemReferencia[];
+  promociones?: ItemPromocionPendiente[];
   zona: string;
   alMarcarReferencia(postId: string, red: Platform): Promise<void>;
 }) {
-  if (manuales.length === 0 && referencias.length === 0) {
+  if (manuales.length === 0 && referencias.length === 0 && promociones.length === 0) {
     return <p className="py-10 text-center text-texto-secundario">No hay pendientes.</p>;
   }
   return (
@@ -116,6 +127,34 @@ export function ListaPendientes({
               </article>
             );
           })}
+        </section>
+      )}
+      {promociones.length > 0 && (
+        <section aria-labelledby="titulo-promocion" className="flex flex-col gap-3">
+          <h2 id="titulo-promocion" className="font-heading text-2xl text-texto">
+            Promoción
+          </h2>
+          {promociones.map(({ postId, tituloPrincipal, item, vencido }) => (
+            <article
+              key={`${postId}-${item.id}`}
+              aria-label={`${item.title} · ${tituloPrincipal}`}
+              className="neu-elevado flex flex-wrap items-center justify-between gap-3 p-4"
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="font-heading text-xl text-texto">{item.title}</h3>
+                <span className="text-sm text-texto-secundario">
+                  {`${ETIQUETAS_TIPO_PROMOCION[item.type]} · ${tituloPrincipal}`}
+                </span>
+                {item.dueAt && (
+                  <span className="cifras text-sm text-texto-secundario">{formatearFechaHora(item.dueAt, zona)}</span>
+                )}
+                {vencido && <span className="text-sm font-medium text-alerta">Vencido</span>}
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/publicaciones/${postId}`}>Ver principal</Link>
+              </Button>
+            </article>
+          ))}
         </section>
       )}
     </div>

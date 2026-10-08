@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 /* Tema claro neoclásico (spec 5.5). Los colores viven en variables para poder agregar un modo oscuro después. */
 
@@ -47,23 +47,23 @@
 
 :root {
   /* Paleta */
-  --fondo: #F3ECE1;
-  --fondo-marmol-veta: #E6DACA;
-  --superficie: #F8F3EB;
-  --superficie-elevada: #FCF9F4;
-  --borde: #E4D7C5;
-  --texto: #33281F;
-  --texto-secundario: #6B5B4B;
+  --fondo: #f3ece1;
+  --fondo-marmol-veta: #e6daca;
+  --superficie: #f8f3eb;
+  --superficie-elevada: #fcf9f4;
+  --borde: #e4d7c5;
+  --texto: #33281f;
+  --texto-secundario: #6b5b4b;
   --texto-tenue: #857360;
-  --oro: #B08442;
-  --oro-claro: #D9B77A;
-  --oro-profundo: #7E5A24;
-  --boton-oro-inicio: #8A6328;
-  --boton-oro-fin: #6F4E1E;
-  --sobre-oro: #FFFDF8;
-  --exito: #3F6B3A;
-  --alerta: #85590C;
-  --peligro: #9A3B2A;
+  --oro: #b08442;
+  --oro-claro: #d9b77a;
+  --oro-profundo: #7e5a24;
+  --boton-oro-inicio: #8a6328;
+  --boton-oro-fin: #6f4e1e;
+  --sobre-oro: #fffdf8;
+  --exito: #3f6b3a;
+  --alerta: #85590c;
+  --peligro: #9a3b2a;
 
   /* Profundidad */
   --sombra-oscura: rgba(140, 110, 70, 0.22);
@@ -115,8 +115,16 @@
   .fondo-marmol {
     background-color: var(--fondo);
     background-image:
-      radial-gradient(ellipse 60% 45% at 12% 8%, color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent), transparent 70%),
-      radial-gradient(ellipse 55% 40% at 88% 92%, color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent), transparent 70%),
+      radial-gradient(
+        ellipse 60% 45% at 12% 8%,
+        color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 55% 40% at 88% 92%,
+        color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent),
+        transparent 70%
+      ),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008 0.03' numOctaves='4' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.45 0 0 0 0 0.33 0 0 0 0.12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-attachment: fixed;
   }

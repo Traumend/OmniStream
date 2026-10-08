@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ListaPendientes } from '@/components/pendientes/ListaPendientes';
 import { useAjustes } from '@/lib/ajustes/useAjustes';
 import { ejecutarAccion, mensajeDeError } from '@/lib/publicaciones/acciones';
+import { usePromocionesPendientes } from '@/lib/publicaciones/promocion';
 import { usePendientes, usePublicacionesPorId, useUrlsDePrincipales } from '@/lib/publicaciones/repositorio';
 
 export default function Pendientes() {
@@ -14,6 +15,7 @@ export default function Pendientes() {
   const idsPrincipales = referencias.flatMap((i) => publicaciones.get(i.postId)?.parentId ?? []);
   const principales = usePublicacionesPorId(idsPrincipales);
   const urls = useUrlsDePrincipales(idsPrincipales);
+  const promociones = usePromocionesPendientes();
 
   const unir = <T extends { postId: string }>(items: T[]) =>
     items.flatMap((item) => {
@@ -34,7 +36,7 @@ export default function Pendientes() {
     <section className="flex flex-col gap-6">
       <header>
         <h1 className="text-4xl text-texto">Pendientes</h1>
-        <p className="text-texto-secundario">Lo que toca publicar a mano, en orden de hora.</p>
+        <p className="text-texto-secundario">Lo que toca publicar a mano y la promoción de tus videos principales.</p>
       </header>
       <ListaPendientes
         manuales={unir(manuales)}
@@ -43,6 +45,7 @@ export default function Pendientes() {
           principal: item.publicacion.parentId ? (principales.get(item.publicacion.parentId) ?? null) : null,
           urlPrincipal: item.publicacion.parentId ? urls.get(item.publicacion.parentId) : undefined,
         }))}
+        promociones={promociones}
         zona={timezone}
         alMarcarReferencia={alMarcarReferencia}
       />

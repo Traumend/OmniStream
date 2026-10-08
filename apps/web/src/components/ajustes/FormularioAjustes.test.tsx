@@ -38,3 +38,26 @@ it('guarda valores válidos', async () => {
   await user.click(screen.getByRole('button', { name: 'Guardar' }));
   expect(alGuardar).toHaveBeenCalledWith({ ...valores, retentionDays: 14 });
 });
+
+it('acepta 0 días de retención', async () => {
+  const user = userEvent.setup();
+  const alGuardar = vi.fn().mockResolvedValue(undefined);
+  render(<FormularioAjustes valores={valores} zonas={['America/Bogota']} alGuardar={alGuardar} />);
+  expect(screen.getByText('0 = borrar el video en cuanto se publica en todas sus redes.')).toBeInTheDocument();
+  await user.clear(screen.getByLabelText('Días de retención'));
+  await user.type(screen.getByLabelText('Días de retención'), '0');
+  await user.click(screen.getByRole('button', { name: 'Guardar' }));
+  expect(alGuardar).toHaveBeenCalledWith({ ...valores, retentionDays: 0 });
+});
+
+it('guarda la plantilla de promoción editada', async () => {
+  const user = userEvent.setup();
+  const alGuardar = vi.fn().mockResolvedValue(undefined);
+  render(<FormularioAjustes valores={valores} zonas={['America/Bogota']} alGuardar={alGuardar} />);
+  await user.click(screen.getByRole('button', { name: 'Quitar pendiente 5' }));
+  await user.click(screen.getByRole('button', { name: 'Guardar' }));
+  expect(alGuardar).toHaveBeenCalledWith({
+    ...valores,
+    promotionTemplate: PLANTILLA_PROMOCION_POR_DEFECTO.slice(0, 4),
+  });
+});

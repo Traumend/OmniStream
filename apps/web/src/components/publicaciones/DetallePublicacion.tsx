@@ -7,6 +7,7 @@ import {
   ETIQUETAS_ESTADO_PUBLICACION,
   ETIQUETAS_RED,
   ETIQUETAS_TIPO,
+  fechaBasePromocion,
   formatearFechaHora,
   REGLAS,
   sePuedeEliminar,
@@ -14,6 +15,7 @@ import {
   type Asset,
   type Destino,
   type Intento,
+  type ItemPromocion,
   type Platform,
   type Publicacion,
 } from '@omnistream/core';
@@ -32,6 +34,7 @@ import { revisarEnvio } from '@/lib/publicaciones/revisarEnvio';
 import { ConfirmarEnvio } from './ConfirmarEnvio';
 import { InsigniaRed } from './InsigniaRed';
 import { ListaErrores } from './ListaErrores';
+import { PanelPromocion } from './PanelPromocion';
 
 export interface PropsDetalle {
   publicacion: Publicacion;
@@ -162,6 +165,25 @@ function DestinoDetalle({
   );
 }
 
+// La función recibe las fechas como texto ISO; notifiedAt lo maneja solo el servidor.
+function aEntradaPromocion(item: ItemPromocion) {
+  return {
+    id: item.id,
+    type: item.type,
+    title: item.title,
+    offsetDays: item.offsetDays,
+    dueAt: item.dueAt?.toISOString() ?? null,
+    dueAtEdited: item.dueAtEdited,
+    status: item.status,
+    ...(item.hijaId ? { hijaId: item.hijaId } : {}),
+    ...(item.note ? { note: item.note } : {}),
+  };
+}
+
+// El panel se reinicia cuando la lista guardada cambia (por ejemplo, al recalcular fechas en el servidor).
+const claveDePromocion = (publicacion: Publicacion) =>
+  JSON.stringify(publicacion.promotion?.items.map((i) => [i.id, i.status, i.dueAt?.getTime(), i.hijaId]) ?? []);
+
 export function DetallePublicacion({
   publicacion,
   destinos,
@@ -179,6 +201,7 @@ export function DetallePublicacion({
   const [ocupado, setOcupado] = useState(false);
 
   const postId = publicacion.id;
+  const youtube = destinos.find((d) => d.platform === 'youtube');
   const estados = destinos.map((d) => d.status);
   const editable = esEditable(estados);
   const programable =
@@ -291,6 +314,21 @@ export function DetallePublicacion({
             </Button>
           </div>
         </Tarjeta>
+      )}
+
+      {publicacion.kind === 'principal' && (
+        <PanelPromocion
+          key={claveDePromocion(publicacion)}
+          publicacion={publicacion}
+          hijas={hijas}
+          zona={zona}
+          fechaBase={fechaBasePromocion(publicacion, youtube)}
+          urlYoutube={publicacion.origin === 'youtube_importado' ? youtube?.remote?.url : undefined}
+          ahora={ahora}
+          alGuardar={(items) =>
+            ejecutar({ accion: 'actualizarPromocion', postId, items: items.map(aEntradaPromocion) })
+          }
+        />
       )}
 
       {publicacion.kind === 'principal' && (
