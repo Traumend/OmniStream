@@ -10,3 +10,4 @@ pruebas/**/.fixtures
 apps/web/test-results
 apps/web/playwright-report
 .superpowers
+functions/.secret.local

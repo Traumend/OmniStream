@@ -56,17 +56,31 @@ describe('Firestore', () => {
     await assertFails(getDoc(doc(propietario.firestore(), 'secrets/ai_anthropic')));
     await assertFails(setDoc(doc(propietario.firestore(), 'secrets/ai_anthropic'), { x: 1 }));
   });
+  it('propietario no lee ni escribe oauthStates ni dataDeletions', async () => {
+    for (const ruta of ['oauthStates/s1', 'dataDeletions/d1']) {
+      await assertFails(getDoc(doc(propietario.firestore(), ruta)));
+      await assertFails(setDoc(doc(propietario.firestore(), ruta), { x: 1 }));
+    }
+  });
   it('colecciones no declaradas están denegadas', async () => {
     await assertFails(getDoc(doc(propietario.firestore(), 'otra/x')));
   });
   it('propietario lee publicaciones, destinos, intentos, avisos y conexiones', async () => {
     const db = propietario.firestore();
-    for (const ruta of ['posts/p1', 'posts/p1/targets/tiktok', 'posts/p1/targets/tiktok/attempts/a1', 'notifications/n1', 'connections/youtube']) {
+    for (const ruta of [
+      'posts/p1',
+      'posts/p1/targets/tiktok',
+      'posts/p1/targets/tiktok/attempts/a1',
+      'notifications/n1',
+      'connections/youtube',
+    ]) {
       await assertSucceeds(getDoc(doc(db, ruta)));
     }
   });
   it('propietario consulta el grupo de colecciones targets', async () => {
-    await assertSucceeds(getDocs(query(collectionGroup(propietario.firestore(), 'targets'), where('status', '==', 'pendiente_manual'))));
+    await assertSucceeds(
+      getDocs(query(collectionGroup(propietario.firestore(), 'targets'), where('status', '==', 'pendiente_manual'))),
+    );
   });
   it('nadie escribe publicaciones, destinos, avisos ni conexiones desde el cliente', async () => {
     const db = propietario.firestore();

@@ -10,7 +10,8 @@
     {
       "source": "functions/dist",
       "codebase": "default",
-      "predeploy": ["pnpm --filter @omnistream/functions build"]
+      "predeploy": ["pnpm --filter @omnistream/functions build"],
+      "ignore": ["node_modules", ".git", "*.local", "firebase-debug.*.log"]
     }
   ],
   "emulators": {

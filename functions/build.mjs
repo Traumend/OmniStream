@@ -28,14 +28,20 @@ await build({
 writeFileSync(
   join(dist, 'package.json'),
   `${JSON.stringify(
-    { name: 'omnistream-functions', private: true, main: 'index.js', engines: { node: '22' }, dependencies: dependencias },
+    {
+      name: 'omnistream-functions',
+      private: true,
+      main: 'index.js',
+      engines: { node: '22' },
+      dependencies: dependencias,
+    },
     null,
     2,
   )}\n`,
 );
 
 for (const archivo of readdirSync(raiz)) {
-  if (archivo.startsWith('.env')) copyFileSync(join(raiz, archivo), join(dist, archivo));
+  if (archivo.startsWith('.env') || archivo === '.secret.local') copyFileSync(join(raiz, archivo), join(dist, archivo));
 }
 
 if (!process.argv.includes('--sin-instalar')) {

@@ -7,6 +7,12 @@ service cloud.firestore {
     match /secrets/{id} {
       allow read, write: if false;
     }
+    match /oauthStates/{id} {
+      allow read, write: if false;
+    }
+    match /dataDeletions/{id} {
+      allow read, write: if false;
+    }
     match /settings/{id} {
       allow read, write: if esPropietario();
     }
