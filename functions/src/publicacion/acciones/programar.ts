@@ -1,5 +1,6 @@
 import {
   esEditable,
+  leerDestino,
   mensajeProblemas,
   validarPublicacion,
   type Destino,
@@ -132,5 +133,52 @@ export async function moverPublicacion(
   });
 
   await encolarTodos(db, postId, programados, deps);
+  return { postId };
+}
+
+export async function reintentarDestino(
+  postId: string,
+  red: Platform,
+  deps: DependenciasAccion,
+): Promise<RespuestaPublicaciones> {
+  const { db, ahora } = deps;
+  const noReintentable = () => new HttpsError('failed-precondition', 'Solo se puede reintentar un destino fallido.');
+  const completa = await leerPublicacionCompleta(db, postId);
+  if (!completa) throw noExiste();
+  const destino = completa.destinos.find((d) => d.platform === red);
+  if (!destino || destino.status !== 'fallida') throw noReintentable();
+
+  const contexto = await leerContexto(db, completa.publicacion);
+  const errores = validarPublicacion({
+    publicacion: completa.publicacion,
+    destinos: completa.destinos,
+    asset: contexto.asset,
+    principal: contexto.principal,
+    numeroDeHijas: 0,
+    ahora,
+    hora: 'sin_comprobar',
+  }).filter((p) => p.nivel === 'error' && (p.red === undefined || p.red === red));
+  if (errores.length > 0) throw new HttpsError('failed-precondition', mensajeProblemas(errores));
+
+  const modos = await leerModos(db, [red]);
+  const ref = refDestino(db, postId, red);
+  const programado = await db.runTransaction(async (tx) => {
+    const actual = await tx.get(ref);
+    const fresco = actual.exists ? leerDestino(actual.data()) : null;
+    if (!fresco || fresco.status !== 'fallida') throw noReintentable();
+    const scheduleVersion = fresco.scheduleVersion + 1;
+    // Conserva el checkpoint: un conector por API puede continuar desde la última etapa.
+    tx.update(ref, {
+      status: 'programada',
+      scheduleVersion,
+      scheduledAt: ahora,
+      publishMode: modos[red],
+      statusChangedAt: ahora,
+      lastError: FieldValue.delete(),
+      lease: FieldValue.delete(),
+    });
+    return { platform: red, scheduleVersion, scheduledAt: ahora, attempts: fresco.attempts };
+  });
+  await encolarTodos(db, postId, [programado], deps);
   return { postId };
 }

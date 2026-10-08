@@ -4,7 +4,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { REGION } from '../config';
 import type { DependenciasAccion } from './acciones/dependencias';
 import { guardarPublicacion } from './acciones/guardar';
-import { moverPublicacion, programarPublicacion } from './acciones/programar';
+import {
+  cancelarPublicacion,
+  desvincularHija,
+  eliminarPublicacion,
+  marcarPublicada,
+  marcarReferencia,
+} from './acciones/cierre';
+import { moverPublicacion, programarPublicacion, reintentarDestino } from './acciones/programar';
 import { exigirPropietario } from './autorizacion';
 import { encoladorCloudTasks } from './cola';
 
@@ -36,6 +43,12 @@ export function crearManejadores(deps: DependenciasAccion): ManejadoresAccion {
     guardar: (a) => guardarPublicacion(a.publicacion, deps),
     programar: (a) => programarPublicacion(a.postId, a.inmediata, deps),
     mover: (a) => moverPublicacion(a.postId, new Date(a.scheduledAt), deps),
+    cancelar: (a) => cancelarPublicacion(a.postId, deps),
+    reintentar: (a) => reintentarDestino(a.postId, a.platform, deps),
+    eliminar: (a) => eliminarPublicacion(a.postId, deps),
+    desvincular: (a) => desvincularHija(a.postId, deps),
+    marcarPublicada: (a) => marcarPublicada(a.postId, a.platform, a.url, deps),
+    marcarReferencia: (a) => marcarReferencia(a.postId, a.platform, deps),
   };
 }
 
