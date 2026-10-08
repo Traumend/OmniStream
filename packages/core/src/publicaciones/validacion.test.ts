@@ -178,7 +178,15 @@ it('mensajeProblemas resume los errores', () => {
 });
 
 describe('modo API', () => {
-  const imagen = { kind: 'image', status: 'listo', mimeType: 'image/jpeg', sizeBytes: 1_000_000, width: 1080, height: 1080, aspect: 1 } as const;
+  const imagen = {
+    kind: 'image',
+    status: 'listo',
+    mimeType: 'image/jpeg',
+    sizeBytes: 1_000_000,
+    width: 1080,
+    height: 1080,
+    aspect: 1,
+  } as const;
   const errores = (destinos: ContextoValidacion['destinos'], extra: Extra = {}) =>
     validar(destinos, extra)
       .filter((p) => p.nivel === 'error')

@@ -1,6 +1,6 @@
 import { ETIQUETAS_RED, type Platform } from './tipos';
 
-export type TipoAviso = 'pendiente_manual' | 'fallo' | 'referencia' | 'conexion';
+export type TipoAviso = 'pendiente_manual' | 'fallo' | 'referencia' | 'conexion' | 'promocion';
 
 export interface Aviso {
   tipo: TipoAviso;
@@ -10,7 +10,7 @@ export interface Aviso {
 }
 
 export function avisoDe(
-  tipo: Exclude<TipoAviso, 'conexion'>,
+  tipo: Exclude<TipoAviso, 'conexion' | 'promocion'>,
   datos: { postId: string; titulo: string; platform: Platform; error?: string },
 ): Aviso {
   const cuerpo = `${datos.titulo} · ${ETIQUETAS_RED[datos.platform]}`;
@@ -35,5 +35,14 @@ export function avisoConexion(platform: Platform): Aviso {
     titulo: `Reconecta ${ETIQUETAS_RED[platform]}`,
     cuerpo: 'El acceso venció. Vuelve a conectarla para publicar por API.',
     enlace: '/ajustes/conexiones',
+  };
+}
+
+export function avisoPromocion(datos: { postId: string; tituloPrincipal: string; item: { title: string } }): Aviso {
+  return {
+    tipo: 'promocion',
+    titulo: 'Promoción pendiente',
+    cuerpo: `${datos.item.title} · ${datos.tituloPrincipal}`,
+    enlace: `/publicaciones/${datos.postId}`,
   };
 }

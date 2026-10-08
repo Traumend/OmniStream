@@ -64,3 +64,37 @@ it('acepta los campos de TikTok y rechaza una privacidad inválida', () => {
   expect(entradaPublicacionSchema.safeParse(tiktok('SELF_ONLY')).success).toBe(true);
   expect(entradaPublicacionSchema.safeParse(tiktok('PRIVADO')).success).toBe(false);
 });
+
+it('acepta importarYoutube y actualizarPromocion, y rechaza un tipo desconocido', () => {
+  expect(
+    accionPublicacionSchema.safeParse({ accion: 'importarYoutube', url: 'https://youtu.be/dQw4w9WgXcQ' }).success,
+  ).toBe(true);
+  expect(accionPublicacionSchema.safeParse({ accion: 'importarYoutube', url: ' ' }).success).toBe(false);
+  const item = {
+    id: 'i1',
+    type: 'short',
+    title: 'Short 1',
+    offsetDays: 1,
+    dueAt: '2026-10-11T15:00:00.000Z',
+    dueAtEdited: true,
+    status: 'pendiente',
+    note: 'Con el clip del minuto 3',
+  };
+  expect(
+    accionPublicacionSchema.safeParse({ accion: 'actualizarPromocion', postId: 'p1', items: [item] }).success,
+  ).toBe(true);
+  expect(
+    accionPublicacionSchema.safeParse({
+      accion: 'actualizarPromocion',
+      postId: 'p1',
+      items: [{ ...item, dueAt: null }],
+    }).success,
+  ).toBe(true);
+  expect(
+    accionPublicacionSchema.safeParse({
+      accion: 'actualizarPromocion',
+      postId: 'p1',
+      items: [{ ...item, type: 'anuncio' }],
+    }).success,
+  ).toBe(false);
+});

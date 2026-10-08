@@ -210,11 +210,7 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
         agregar('error', 'YouTube: el título y la descripción no pueden contener los signos < ni >.', red);
       }
       if (contarBytesUtf8(contenido.texto) > LIMITES_YOUTUBE.descripcion) {
-        agregar(
-          'error',
-          'YouTube: la descripción pasa de 5.000 bytes (los acentos y emojis ocupan más de uno).',
-          red,
-        );
+        agregar('error', 'YouTube: la descripción pasa de 5.000 bytes (los acentos y emojis ocupan más de uno).', red);
       }
       const largoEtiquetas = largoEtiquetasYoutube(contenido.etiquetas ?? []);
       if (largoEtiquetas > LIMITES_YOUTUBE.etiquetas) {

@@ -2,9 +2,9 @@ import { expect, it } from 'vitest';
 import { accionConexionSchema } from './entrada';
 
 it('acepta configurar mediaVerified en TikTok', () => {
-  expect(accionConexionSchema.safeParse({ accion: 'configurar', platform: 'tiktok', mediaVerified: true }).success).toBe(
-    true,
-  );
+  expect(
+    accionConexionSchema.safeParse({ accion: 'configurar', platform: 'tiktok', mediaVerified: true }).success,
+  ).toBe(true);
 });
 
 it('rechaza un proveedor desconocido', () => {

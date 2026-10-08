@@ -12,8 +12,7 @@ export const REDES_DE_PROVEEDOR: Record<Proveedor, readonly Platform[]> = {
 
 export const ETIQUETAS_PROVEEDOR: Record<Proveedor, string> = { meta: 'Meta', youtube: 'YouTube', tiktok: 'TikTok' };
 
-export const proveedorDe = (red: Platform): Proveedor =>
-  red === 'facebook' || red === 'instagram' ? 'meta' : red;
+export const proveedorDe = (red: Platform): Proveedor => (red === 'facebook' || red === 'instagram' ? 'meta' : red);
 
 export type EstadoConexion = 'sin_conectar' | 'conectada' | 'expirada' | 'error';
 

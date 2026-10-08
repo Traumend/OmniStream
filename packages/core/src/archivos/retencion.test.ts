@@ -48,3 +48,16 @@ it('posponerHasta suma 7 días a la fecha visible, o a hoy si ya pasó', () => {
   expect(posponerHasta({ purgeAt: hace(3) }, ahora)).toEqual(hace(-7));
   expect(posponerHasta({}, ahora)).toEqual(hace(-7));
 });
+
+it('con 0 días de retención se purga en cuanto el último destino queda terminal', () => {
+  expect(
+    calcularPurga({
+      ...base,
+      retentionDays: 0,
+      usos: [
+        { status: 'publicada', statusChangedAt: hace(2) },
+        { status: 'cancelada', statusChangedAt: hace(1) },
+      ],
+    }),
+  ).toEqual(hace(1));
+});

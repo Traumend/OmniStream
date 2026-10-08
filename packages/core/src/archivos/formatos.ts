@@ -28,8 +28,7 @@ export function detectarTipo(nombre: string, mime: string): { tipo: TipoArchivo;
 export type ErrorArchivo = 'formato_no_soportado' | 'archivo_vacio' | 'excede_limite' | 'imagen_excede_limite';
 
 type ResultadoValidacion =
-  | { ok: true; tipo: TipoArchivo; mime: string }
-  | { ok: false; error: ErrorArchivo; mensaje: string };
+  { ok: true; tipo: TipoArchivo; mime: string } | { ok: false; error: ErrorArchivo; mensaje: string };
 
 export function validarArchivo(
   archivo: { nombre: string; mime: string; bytes: number },

@@ -8,7 +8,8 @@ const redondear = (valor: number, decimales: number) => {
 export function tiemposDeFotogramas(durationSec: number): Record<Fotograma, number> {
   if (!Number.isFinite(durationSec) || durationSec <= 0) throw new RangeError('Duración inválida');
   const d = durationSec;
-  const tiempos = d >= 2 ? { start: 1, middle: d / 2, end: d - 1 } : { start: 0, middle: d / 2, end: Math.max(0, d - 0.1) };
+  const tiempos =
+    d >= 2 ? { start: 1, middle: d / 2, end: d - 1 } : { start: 0, middle: d / 2, end: Math.max(0, d - 0.1) };
   return {
     start: redondear(tiempos.start, 3),
     middle: redondear(tiempos.middle, 3),

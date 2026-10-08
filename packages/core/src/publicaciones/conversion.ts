@@ -1,3 +1,4 @@
+import { TIPOS_PROMOCION, type ItemPromocion, type TipoPromocion } from './promocion';
 import {
   PRIVACIDADES_TIKTOK,
   type CamposTiktok,
@@ -51,7 +52,37 @@ export function leerPublicacion(id: string, datos: unknown): Publicacion {
     targetStatus: registro(d.targetStatus) as Publicacion['targetStatus'],
     createdAt: creada,
     updatedAt: aFecha(d.updatedAt) ?? creada,
+    origin: d.origin === 'youtube_importado' || d.origin === 'omnistream' ? d.origin : undefined,
+    promotion: leerPromocion(d.promotion),
+    awaitingPublicationUntil: aFecha(d.awaitingPublicationUntil),
   });
+}
+
+function leerPromocion(valor: unknown): Publicacion['promotion'] {
+  if (typeof valor !== 'object' || valor === null) return undefined;
+  const items = registro(valor).items;
+  if (!Array.isArray(items)) return undefined;
+  return {
+    items: items.flatMap((bruto): ItemPromocion[] => {
+      const i = registro(bruto);
+      const tipo = texto(i.type);
+      if (!texto(i.id) || !(TIPOS_PROMOCION as readonly string[]).includes(tipo ?? '')) return [];
+      return [
+        definidos({
+          id: i.id as string,
+          type: tipo as TipoPromocion,
+          title: texto(i.title) ?? '',
+          offsetDays: typeof i.offsetDays === 'number' ? i.offsetDays : 0,
+          dueAt: aFecha(i.dueAt) ?? null,
+          dueAtEdited: i.dueAtEdited === true,
+          status: i.status === 'hecho' ? 'hecho' : 'pendiente',
+          hijaId: texto(i.hijaId),
+          note: texto(i.note),
+          notifiedAt: aFecha(i.notifiedAt),
+        }),
+      ];
+    }),
+  };
 }
 
 function leerYoutube(valor: unknown): CamposYoutube | undefined {

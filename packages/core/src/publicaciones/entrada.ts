@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { ETIQUETAS_FORMATO, ETIQUETAS_RED, FORMATOS, FORMATOS_POR_RED, PLATAFORMAS, PRIVACIDADES_TIKTOK } from './tipos';
+import { itemPromocionSchema } from './promocion';
+import {
+  ETIQUETAS_FORMATO,
+  ETIQUETAS_RED,
+  FORMATOS,
+  FORMATOS_POR_RED,
+  PLATAFORMAS,
+  PRIVACIDADES_TIKTOK,
+} from './tipos';
 
 const plataforma = z.enum(PLATAFORMAS);
 const formato = z.enum(FORMATOS);
@@ -72,6 +80,15 @@ export const accionPublicacionSchema = z.discriminatedUnion('accion', [
     url: z.string().trim().min(1, 'Pega la URL de la publicación.'),
   }),
   z.object({ accion: z.literal('marcarReferencia'), postId: id, platform: plataforma }),
+  z.object({
+    accion: z.literal('importarYoutube'),
+    url: z.string().trim().min(1, 'Pega el enlace del video de YouTube.'),
+  }),
+  z.object({
+    accion: z.literal('actualizarPromocion'),
+    postId: id,
+    items: z.array(itemPromocionSchema).max(30, 'La lista admite hasta 30 pendientes.'),
+  }),
 ]);
 
 export type AccionPublicacion = z.infer<typeof accionPublicacionSchema>;

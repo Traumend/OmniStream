@@ -1,3 +1,4 @@
+import type { ItemPromocion } from './promocion';
 import type { Fotograma } from '../archivos/fotogramas';
 
 export const PLATAFORMAS = ['facebook', 'instagram', 'youtube', 'tiktok'] as const;
@@ -60,7 +61,12 @@ export const CAMPOS_YOUTUBE_POR_DEFECTO: CamposYoutube = {
   madeForKids: false,
 };
 
-export const PRIVACIDADES_TIKTOK = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'] as const;
+export const PRIVACIDADES_TIKTOK = [
+  'PUBLIC_TO_EVERYONE',
+  'MUTUAL_FOLLOW_FRIENDS',
+  'FOLLOWER_OF_CREATOR',
+  'SELF_ONLY',
+] as const;
 export type PrivacidadTiktok = (typeof PRIVACIDADES_TIKTOK)[number];
 
 export const ETIQUETAS_PRIVACIDAD_TIKTOK: Record<PrivacidadTiktok, string> = {
@@ -122,6 +128,9 @@ export interface Publicacion {
   targetStatus: Partial<Record<Platform, EstadoDestino>>;
   createdAt: Date;
   updatedAt: Date;
+  origin?: 'omnistream' | 'youtube_importado';
+  promotion?: { items: ItemPromocion[] };
+  awaitingPublicationUntil?: Date; // Principal importado aún sin publicar: se revisa hasta esta fecha
 }
 
 export interface Destino {

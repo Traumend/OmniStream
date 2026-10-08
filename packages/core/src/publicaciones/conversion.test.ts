@@ -70,3 +70,51 @@ it('destinoNuevo incluye los campos de TikTok', () => {
   const d = destinoNuevo('tiktok', 'tiktok', { esHija: false, ahora: new Date(0), tiktok: CAMPOS_TIKTOK_POR_DEFECTO });
   expect(d.tiktok).toEqual(CAMPOS_TIKTOK_POR_DEFECTO);
 });
+
+it('leerPublicacion convierte la promoción, el origen y la espera de publicación', () => {
+  const ts = (iso: string) => ({ toDate: () => new Date(iso) });
+  const publicacion = leerPublicacion('p1', {
+    title: 'Importado',
+    origin: 'youtube_importado',
+    awaitingPublicationUntil: ts('2026-10-20T00:00:00Z'),
+    promotion: {
+      items: [
+        {
+          id: 'i1',
+          type: 'short',
+          title: 'Short 1',
+          offsetDays: 1,
+          dueAt: ts('2026-10-11T15:00:00Z'),
+          dueAtEdited: false,
+          status: 'pendiente',
+          notifiedAt: ts('2026-10-11T16:00:00Z'),
+        },
+        { id: 'i2', type: 'comunidad', title: 'Post', offsetDays: 2, dueAt: null, status: 'hecho', hijaId: 'h1' },
+      ],
+    },
+  });
+  expect(publicacion.origin).toBe('youtube_importado');
+  expect(publicacion.awaitingPublicationUntil).toEqual(new Date('2026-10-20T00:00:00Z'));
+  expect(publicacion.promotion?.items).toEqual([
+    {
+      id: 'i1',
+      type: 'short',
+      title: 'Short 1',
+      offsetDays: 1,
+      dueAt: new Date('2026-10-11T15:00:00Z'),
+      dueAtEdited: false,
+      status: 'pendiente',
+      notifiedAt: new Date('2026-10-11T16:00:00Z'),
+    },
+    {
+      id: 'i2',
+      type: 'comunidad',
+      title: 'Post',
+      offsetDays: 2,
+      dueAt: null,
+      dueAtEdited: false,
+      status: 'hecho',
+      hijaId: 'h1',
+    },
+  ]);
+});
