@@ -10,7 +10,12 @@ export const ETIQUETAS_RED: Record<Platform, string> = {
   tiktok: 'TikTok',
 };
 
-export const ABREVIATURAS_RED: Record<Platform, string> = { facebook: 'FB', instagram: 'IG', youtube: 'YT', tiktok: 'TT' };
+export const ABREVIATURAS_RED: Record<Platform, string> = {
+  facebook: 'FB',
+  instagram: 'IG',
+  youtube: 'YT',
+  tiktok: 'TT',
+};
 
 export const FORMATOS = ['video_largo', 'short', 'reel', 'tiktok', 'imagen'] as const;
 export type FormatoDestino = (typeof FORMATOS)[number];
@@ -31,13 +36,7 @@ export const FORMATOS_POR_RED: Record<Platform, readonly FormatoDestino[]> = {
 };
 
 export type EstadoDestino =
-  | 'borrador'
-  | 'programada'
-  | 'publicando'
-  | 'publicada'
-  | 'fallida'
-  | 'pendiente_manual'
-  | 'cancelada';
+  'borrador' | 'programada' | 'publicando' | 'publicada' | 'fallida' | 'pendiente_manual' | 'cancelada';
 export type EstadoPublicacion = 'idea' | 'borrador' | 'programada' | 'publicando' | 'publicada' | 'parcial' | 'fallida';
 export type TipoPublicacion = 'principal' | 'hija' | 'independiente';
 export type EstadoReferencia = 'no_aplica' | 'en_espera' | 'pendiente' | 'publicada' | 'fallida';

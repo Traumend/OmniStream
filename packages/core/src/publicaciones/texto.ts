@@ -50,6 +50,7 @@ export function contenidoFinal(
     };
   }
   const compuesto = componerTexto(texto, hashtags);
-  if (destino.platform === 'tiktok' && referencia) return { texto: [compuesto, referencia].filter(Boolean).join('\n\n') };
+  if (destino.platform === 'tiktok' && referencia)
+    return { texto: [compuesto, referencia].filter(Boolean).join('\n\n') };
   return { texto: compuesto };
 }

@@ -8,3 +8,4 @@ export * from './reglas';
 export * from './sugerencias';
 export * from './urls';
 export * from './validacion';
+export * from './cola';

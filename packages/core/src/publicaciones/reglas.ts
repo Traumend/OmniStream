@@ -29,7 +29,13 @@ export interface ReglaFormato {
 // Spec 7.4. Los valores se verifican contra la documentación oficial en la fase 2B.
 export const REGLAS: Record<Platform, Partial<Record<FormatoDestino, ReglaFormato>>> = {
   facebook: {
-    reel: { etiqueta: 'Facebook · Reel', tipoArchivo: 'video', duracionMinSec: 3, duracionMaxSec: 90, proporciones: ['9:16'] },
+    reel: {
+      etiqueta: 'Facebook · Reel',
+      tipoArchivo: 'video',
+      duracionMinSec: 3,
+      duracionMaxSec: 90,
+      proporciones: ['9:16'],
+    },
     video_largo: { etiqueta: 'Facebook · Video', tipoArchivo: 'video', proporciones: [] },
     imagen: { etiqueta: 'Facebook · Imagen', tipoArchivo: 'image', proporciones: [] },
   },
@@ -80,7 +86,9 @@ export function proporcionCompatible(regla: ReglaFormato, aspect: number): boole
     return aspect >= minimo * (1 - TOLERANCIA_PROPORCION) && aspect <= maximo * (1 + TOLERANCIA_PROPORCION);
   }
   if (regla.proporciones.length === 0) return true;
-  return regla.proporciones.some((p) => Math.abs(aspect - VALOR_PROPORCION[p]) / VALOR_PROPORCION[p] <= TOLERANCIA_PROPORCION);
+  return regla.proporciones.some(
+    (p) => Math.abs(aspect - VALOR_PROPORCION[p]) / VALOR_PROPORCION[p] <= TOLERANCIA_PROPORCION,
+  );
 }
 
 export const LIMITES_YOUTUBE = { titulo: 100, descripcion: 5000, etiquetas: 500 } as const;

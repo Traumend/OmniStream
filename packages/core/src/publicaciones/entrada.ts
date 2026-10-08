@@ -14,7 +14,11 @@ export const camposYoutubeSchema = z.object({
   thumbnail: z.object({ frame: z.enum(['start', 'middle', 'end']) }).optional(),
 });
 
-const destinoEntradaSchema = z.object({ platform: plataforma, format: formato, youtube: camposYoutubeSchema.optional() });
+const destinoEntradaSchema = z.object({
+  platform: plataforma,
+  format: formato,
+  youtube: camposYoutubeSchema.optional(),
+});
 
 // Los límites de cada red no van aquí: un borrador puede excederlos y los aplica validarPublicacion.
 export const entradaPublicacionSchema = z.object({
@@ -29,10 +33,14 @@ export const entradaPublicacionSchema = z.object({
   parentId: id.nullable(),
   destinos: z.array(destinoEntradaSchema).superRefine((destinos, ctx) => {
     const redes = destinos.map((d) => d.platform);
-    if (new Set(redes).size !== redes.length) ctx.addIssue({ code: 'custom', message: 'Cada red puede aparecer una sola vez.' });
+    if (new Set(redes).size !== redes.length)
+      ctx.addIssue({ code: 'custom', message: 'Cada red puede aparecer una sola vez.' });
     for (const d of destinos) {
       if (!FORMATOS_POR_RED[d.platform].includes(d.format)) {
-        ctx.addIssue({ code: 'custom', message: `${ETIQUETAS_RED[d.platform]} no admite el formato ${ETIQUETAS_FORMATO[d.format]}.` });
+        ctx.addIssue({
+          code: 'custom',
+          message: `${ETIQUETAS_RED[d.platform]} no admite el formato ${ETIQUETAS_FORMATO[d.format]}.`,
+        });
       }
     }
   }),

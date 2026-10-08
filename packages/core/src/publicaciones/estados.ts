@@ -13,7 +13,8 @@ export const ESTADOS_CANCELABLES: ReadonlySet<EstadoDestino> = new Set([
 export function estadoPublicacion(estados: readonly EstadoDestino[], actual: EstadoPublicacion): EstadoPublicacion {
   const conservado = actual === 'idea' ? 'idea' : 'borrador';
   const activos = estados.filter((e) => e !== 'cancelada' && e !== 'borrador');
-  if (activos.length === 0) return estados.some((e) => e === 'borrador') || estados.length === 0 ? conservado : 'borrador';
+  if (activos.length === 0)
+    return estados.some((e) => e === 'borrador') || estados.length === 0 ? conservado : 'borrador';
   if (activos.every((e) => e === 'publicada')) return 'publicada';
   if (activos.includes('publicando')) return 'publicando';
   if (activos.some((e) => e === 'programada' || e === 'pendiente_manual')) return 'programada';

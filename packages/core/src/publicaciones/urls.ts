@@ -37,7 +37,8 @@ const EXTRACTORES: Record<Platform, Extractor> = {
     if (host === 'vm.tiktok.com' || host === 'vt.tiktok.com') return valido(partes[0]);
     if (host !== 'tiktok.com') return undefined;
     if (partes[0] === 't') return valido(partes[1]);
-    if (partes[0]?.startsWith('@') && (partes[1] === 'video' || partes[1] === 'photo')) return valido(partes[2], /^\d+$/);
+    if (partes[0]?.startsWith('@') && (partes[1] === 'video' || partes[1] === 'photo'))
+      return valido(partes[2], /^\d+$/);
     return undefined;
   },
 };

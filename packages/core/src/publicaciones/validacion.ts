@@ -4,7 +4,14 @@ import { describirProporcion } from '../archivos/fotogramas';
 import { problemasDeJerarquia } from './jerarquia';
 import { LIMITES_YOUTUBE, largoEtiquetasYoutube, proporcionCompatible, REGLAS } from './reglas';
 import { contarCaracteres, contenidoFinal, textoReferencia, urlVideoYoutube } from './texto';
-import { ETIQUETAS_FORMATO, ETIQUETAS_RED, type Destino, type Platform, type Publicacion, type TipoPublicacion } from './tipos';
+import {
+  ETIQUETAS_FORMATO,
+  ETIQUETAS_RED,
+  type Destino,
+  type Platform,
+  type Publicacion,
+  type TipoPublicacion,
+} from './tipos';
 
 export interface Problema {
   nivel: 'error' | 'advertencia';
@@ -37,7 +44,8 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
 
   let archivo: ContextoValidacion['asset'] = null;
   if (!publicacion.assetId) agregar('error', 'Elige un archivo.');
-  else if (!asset || asset.status === 'fallido' || asset.status === 'purgado') agregar('error', 'El archivo ya no está disponible.');
+  else if (!asset || asset.status === 'fallido' || asset.status === 'purgado')
+    agregar('error', 'El archivo ya no está disponible.');
   else if (asset.status !== 'listo') agregar('error', 'El archivo aún no está listo.');
   else archivo = asset;
 
@@ -51,12 +59,20 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
 
     if (archivo) {
       if (archivo.kind !== regla.tipoArchivo) {
-        agregar('error', `${regla.etiqueta}: necesita ${regla.tipoArchivo === 'video' ? 'un video' : 'una imagen'}.`, red);
+        agregar(
+          'error',
+          `${regla.etiqueta}: necesita ${regla.tipoArchivo === 'video' ? 'un video' : 'una imagen'}.`,
+          red,
+        );
       } else {
         const duracion = archivo.durationSec;
         if (regla.tipoArchivo === 'video' && duracion !== undefined) {
           if (regla.duracionMinSec !== undefined && duracion < regla.duracionMinSec) {
-            agregar('error', `${regla.etiqueta}: el video debe durar al menos ${formatearDuracion(regla.duracionMinSec)}.`, red);
+            agregar(
+              'error',
+              `${regla.etiqueta}: el video debe durar al menos ${formatearDuracion(regla.duracionMinSec)}.`,
+              red,
+            );
           }
           if (regla.duracionMaxSec !== undefined && duracion > regla.duracionMaxSec) {
             if (regla.duracionMaxEsAdvertencia) {
@@ -92,7 +108,11 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
     if (regla.limiteTexto !== undefined) {
       const largo = contarCaracteres(contenido.texto);
       if (largo > regla.limiteTexto) {
-        agregar('error', `${regla.etiqueta}: el texto tiene ${largo} caracteres y el máximo es ${regla.limiteTexto}.`, red);
+        agregar(
+          'error',
+          `${regla.etiqueta}: el texto tiene ${largo} caracteres y el máximo es ${regla.limiteTexto}.`,
+          red,
+        );
       }
     }
     if (regla.limiteHashtags !== undefined) {
@@ -107,18 +127,30 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
       const largoTitulo = contarCaracteres(titulo);
       if (!titulo) agregar('error', 'YouTube: el título no puede estar vacío.', red);
       else if (largoTitulo > LIMITES_YOUTUBE.titulo) {
-        agregar('error', `YouTube: el título tiene ${largoTitulo} caracteres y el máximo es ${LIMITES_YOUTUBE.titulo}.`, red);
+        agregar(
+          'error',
+          `YouTube: el título tiene ${largoTitulo} caracteres y el máximo es ${LIMITES_YOUTUBE.titulo}.`,
+          red,
+        );
       }
       if (/[<>]/.test(titulo) || /[<>]/.test(contenido.texto)) {
         agregar('error', 'YouTube: el título y la descripción no pueden contener los signos < ni >.', red);
       }
       const largoDescripcion = contarCaracteres(contenido.texto);
       if (largoDescripcion > LIMITES_YOUTUBE.descripcion) {
-        agregar('error', `YouTube: la descripción tiene ${largoDescripcion} caracteres y el máximo es ${LIMITES_YOUTUBE.descripcion}.`, red);
+        agregar(
+          'error',
+          `YouTube: la descripción tiene ${largoDescripcion} caracteres y el máximo es ${LIMITES_YOUTUBE.descripcion}.`,
+          red,
+        );
       }
       const largoEtiquetas = largoEtiquetasYoutube(contenido.etiquetas ?? []);
       if (largoEtiquetas > LIMITES_YOUTUBE.etiquetas) {
-        agregar('error', `YouTube: las etiquetas suman ${largoEtiquetas} caracteres y el máximo es ${LIMITES_YOUTUBE.etiquetas}.`, red);
+        agregar(
+          'error',
+          `YouTube: las etiquetas suman ${largoEtiquetas} caracteres y el máximo es ${LIMITES_YOUTUBE.etiquetas}.`,
+          red,
+        );
       }
     }
   }
@@ -129,7 +161,8 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
 
   if (contexto.hora === 'programada') {
     if (!publicacion.scheduledAt) agregar('error', 'Elige la fecha y la hora.');
-    else if (publicacion.scheduledAt.getTime() <= contexto.ahora.getTime()) agregar('error', 'La hora programada ya pasó.');
+    else if (publicacion.scheduledAt.getTime() <= contexto.ahora.getTime())
+      agregar('error', 'La hora programada ya pasó.');
   }
 
   const jerarquia = problemasDeJerarquia({
