@@ -3,3 +3,5 @@ export * from './http';
 export * from './particion';
 export * from './tipos';
 export * from './youtube';
+export * from './meta';
+export * from './facebook';
