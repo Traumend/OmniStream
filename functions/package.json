@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@omnistream/core": "workspace:*",
+    "@omnistream/platforms": "workspace:*",
     "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
     "typescript": "~6.0.3",
