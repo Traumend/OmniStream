@@ -1,11 +1,32 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type BrowserContext, type Page } from '@playwright/test';
 
 const IFRAME_DE_AUTH = '/emulator/auth/iframe';
+const SCRIPTS_DE_GOOGLE = /^https:\/\/apis\.google\.com\//;
+const INTENTOS_DE_DESCARGA = 3;
+
+// El iframe y la ventana del emulador de Auth cargan gapi desde apis.google.com. En CI esa descarga a veces
+// se cuelga y el iframe queda en "loading" hasta agotar el tiempo, así que se descarga con tiempo límite y
+// se reintenta.
+const contextosConReintento = new WeakSet<BrowserContext>();
+async function reintentarScriptsDeGoogle(contexto: BrowserContext): Promise<void> {
+  if (contextosConReintento.has(contexto)) return;
+  contextosConReintento.add(contexto);
+  await contexto.route(SCRIPTS_DE_GOOGLE, async (ruta) => {
+    for (let intento = 1; intento <= INTENTOS_DE_DESCARGA; intento++) {
+      try {
+        await ruta.fulfill({ response: await ruta.fetch({ timeout: 15_000 }) });
+        return;
+      } catch {
+        // Tiempo agotado o conexión cortada: se reintenta.
+      }
+    }
+    await ruta.abort().catch(() => undefined);
+  });
+}
 
 // La ventana del emulador entrega el resultado al iframe de Auth de la página que la abrió; si ese iframe
 // aún no cargó (pasa en frío), el resultado se pierde ("No matching frame") y el inicio de sesión no ocurre.
-// El iframe puede recargarse o reemplazarse mientras se espera, así que se busca de nuevo en cada sondeo:
-// esperar el evento load de un marco ya desprendido no termina nunca.
+// El marco se busca de nuevo en cada sondeo porque puede reemplazarse mientras se espera.
 async function esperarIframeDeAuth(page: Page): Promise<void> {
   await expect
     .poll(
@@ -22,6 +43,7 @@ async function esperarIframeDeAuth(page: Page): Promise<void> {
 // La ventana asigna sus eventos de clic después de cargar un script externo, así que se espera
 // a que termine de cargar y se reintenta el clic hasta que aparezca el formulario.
 export async function entrarComo(page: Page, email: string): Promise<void> {
+  await reintentarScriptsDeGoogle(page.context());
   const [ventana] = await Promise.all([
     page.waitForEvent('popup'),
     page.getByRole('button', { name: 'Entrar con Google' }).click(),
