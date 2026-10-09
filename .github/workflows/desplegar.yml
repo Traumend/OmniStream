@@ -1,0 +1,54 @@
+name: Desplegar
+
+# Despliega solo después de que CI termine con éxito en main (o a mano).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    # Requiere el proyecto de Firebase configurado y, si viene de CI, que haya terminado bien.
+    if: >-
+      vars.FIREBASE_PROJECT_ID != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    env:
+      PROYECTO: ${{ vars.FIREBASE_PROJECT_ID }}
+      ALLOWED_EMAIL: ${{ vars.ALLOWED_EMAIL }}
+      URL_PUBLICA: ${{ vars.URL_PUBLICA }}
+      META_APP_ID: ${{ vars.META_APP_ID }}
+      META_CONFIG_ID: ${{ vars.META_CONFIG_ID }}
+      GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      TIKTOK_CLIENT_KEY: ${{ vars.TIKTOK_CLIENT_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Configurar el correo permitido
+        run: |
+          {
+            echo "ALLOWED_EMAIL=${ALLOWED_EMAIL}"
+            echo "URL_PUBLICA=${URL_PUBLICA}"
+            echo "META_APP_ID=${META_APP_ID}"
+            echo "META_CONFIG_ID=${META_CONFIG_ID}"
+            echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
+            echo "TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY}"
+          } > "functions/.env.${PROYECTO}"
+      - name: Desplegar funciones y reglas
+        run: node scripts/firebase.cjs deploy --only functions,firestore,storage --project "${PROYECTO}" --non-interactive --force
