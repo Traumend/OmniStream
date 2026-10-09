@@ -4,10 +4,18 @@ const IFRAME_DE_AUTH = '/emulator/auth/iframe';
 
 // La ventana del emulador entrega el resultado al iframe de Auth de la página que la abrió; si ese iframe
 // aún no cargó (pasa en frío), el resultado se pierde ("No matching frame") y el inicio de sesión no ocurre.
+// El iframe puede recargarse o reemplazarse mientras se espera, así que se busca de nuevo en cada sondeo:
+// esperar el evento load de un marco ya desprendido no termina nunca.
 async function esperarIframeDeAuth(page: Page): Promise<void> {
-  const marco = () => page.frames().find((f) => f.url().includes(IFRAME_DE_AUTH));
-  await expect.poll(() => marco() !== undefined, { timeout: 60_000 }).toBe(true);
-  await marco()?.waitForLoadState('load');
+  await expect
+    .poll(
+      async () => {
+        const marco = page.frames().find((f) => f.url().includes(IFRAME_DE_AUTH));
+        return marco?.evaluate(() => document.readyState).catch(() => undefined);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe('complete');
 }
 
 // Completa la ventana de inicio de sesión del emulador de Auth con una cuenta de Google simulada.

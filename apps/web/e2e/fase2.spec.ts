@@ -47,8 +47,9 @@ test('programa a 4 redes en modo manual, llega a pendientes con aviso y se marca
   for (const red of REDES) {
     await expect(page.getByRole('article', { name: `${titulo} · ${red}` })).toBeVisible({ timeout: 60_000 });
   }
-  const avisos = await db.collection('notifications').where('enlace', '==', `/pendientes/${postId}/tiktok`).get();
-  expect(avisos.size).toBe(1);
+  // El aviso lo escribe alCambiarDestino después de que la red pasa a pendiente, así que puede llegar más tarde que la tarjeta.
+  const avisos = db.collection('notifications').where('enlace', '==', `/pendientes/${postId}/tiktok`);
+  await expect.poll(async () => (await avisos.get()).size, { timeout: 30_000 }).toBe(1);
 
   await page
     .getByRole('article', { name: `${titulo} · TikTok` })
