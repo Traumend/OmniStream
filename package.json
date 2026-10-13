@@ -1,0 +1,24 @@
+{
+  "name": "omnistream",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint . && pnpm -r --if-present lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "test:integracion": "node scripts/secretos-demo.cjs && pnpm --filter @omnistream/functions build && node scripts/firebase.cjs emulators:exec --only auth,firestore,storage,functions --project demo-omnistream \"pnpm --filter @omnistream/pruebas-integracion test\"",
+    "test:e2e": "node scripts/secretos-demo.cjs && pnpm --filter @omnistream/functions build && node scripts/firebase.cjs emulators:exec --only auth,firestore,storage,functions --project demo-omnistream \"pnpm --filter @omnistream/web exec playwright test\""
+  },
+  "devDependencies": {
+    "eslint": "^10.12.0",
+    "firebase-tools": "^15.32.1",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+  - functions
+  - pruebas/*
+
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - esbuild
+  - ffmpeg-static
+  - protobufjs
+  - sharp
+
+ignoredBuiltDependencies:
+  - unrs-resolver

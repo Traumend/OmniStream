@@ -1,0 +1,210 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+/* Tema claro neoclásico (spec 5.5). Los colores viven en variables para poder agregar un modo oscuro después. */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--fuente-texto);
+  --font-heading: var(--fuente-titulo);
+  --font-ornamental: var(--fuente-ornamental);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-fondo: var(--fondo);
+  --color-superficie: var(--superficie);
+  --color-superficie-elevada: var(--superficie-elevada);
+  --color-texto: var(--texto);
+  --color-texto-secundario: var(--texto-secundario);
+  --color-texto-tenue: var(--texto-tenue);
+  --color-oro: var(--oro);
+  --color-oro-claro: var(--oro-claro);
+  --color-oro-profundo: var(--oro-profundo);
+  --color-exito: var(--exito);
+  --color-alerta: var(--alerta);
+  --color-peligro: var(--peligro);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.7);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.3);
+  --radius-2xl: calc(var(--radius) * 1.6);
+}
+
+:root {
+  /* Paleta */
+  --fondo: #f3ece1;
+  --fondo-marmol-veta: #e6daca;
+  --superficie: #f8f3eb;
+  --superficie-elevada: #fcf9f4;
+  --borde: #e4d7c5;
+  --texto: #33281f;
+  --texto-secundario: #6b5b4b;
+  --texto-tenue: #857360;
+  --oro: #b08442;
+  --oro-claro: #d9b77a;
+  --oro-profundo: #7e5a24;
+  --boton-oro-inicio: #8a6328;
+  --boton-oro-fin: #6f4e1e;
+  --sobre-oro: #fffdf8;
+  --exito: #3f6b3a;
+  --alerta: #85590c;
+  --peligro: #9a3b2a;
+
+  /* Profundidad */
+  --sombra-oscura: rgba(140, 110, 70, 0.22);
+  --sombra-clara: rgba(255, 255, 255, 0.85);
+  --radio: 18px;
+
+  /* Variables de shadcn */
+  --background: var(--fondo);
+  --foreground: var(--texto);
+  --card: var(--superficie);
+  --card-foreground: var(--texto);
+  --popover: var(--superficie-elevada);
+  --popover-foreground: var(--texto);
+  --primary: var(--boton-oro-fin);
+  --primary-foreground: var(--sobre-oro);
+  --secondary: var(--superficie-elevada);
+  --secondary-foreground: var(--texto);
+  --muted: var(--superficie);
+  --muted-foreground: var(--texto-secundario);
+  --accent: color-mix(in srgb, var(--oro-claro) 30%, var(--superficie-elevada));
+  --accent-foreground: var(--texto);
+  --destructive: var(--peligro);
+  --border: var(--borde);
+  --input: var(--borde);
+  --ring: var(--oro);
+  --radius: var(--radio);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--fuente-titulo);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+}
+
+@layer components {
+  .fondo-marmol {
+    background-color: var(--fondo);
+    background-image:
+      radial-gradient(
+        ellipse 60% 45% at 12% 8%,
+        color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 55% 40% at 88% 92%,
+        color-mix(in srgb, var(--fondo-marmol-veta) 35%, transparent),
+        transparent 70%
+      ),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008 0.03' numOctaves='4' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.45 0 0 0 0 0.33 0 0 0 0.12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-attachment: fixed;
+  }
+
+  .neu-elevado {
+    background-color: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    box-shadow:
+      10px 10px 24px var(--sombra-oscura),
+      -8px -8px 20px var(--sombra-clara);
+  }
+
+  .neu-hundido {
+    background-color: var(--fondo);
+    border-radius: var(--radio);
+    box-shadow:
+      inset 4px 4px 10px var(--sombra-oscura),
+      inset -4px -4px 10px var(--sombra-clara);
+  }
+
+  .boton-oro {
+    background-image: linear-gradient(180deg, var(--boton-oro-inicio), var(--boton-oro-fin));
+    color: var(--sobre-oro);
+    border: 1px solid var(--boton-oro-fin);
+    box-shadow:
+      0 6px 14px var(--sombra-oscura),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .boton-oro:hover {
+    filter: brightness(1.06);
+  }
+
+  .etiqueta-ornamental {
+    font-family: var(--fuente-ornamental);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+  }
+
+  .cifras {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Calendario (FullCalendar) con los colores del tema */
+.calendario-omnistream .fc {
+  --fc-border-color: var(--borde);
+  --fc-page-bg-color: var(--superficie);
+  --fc-neutral-bg-color: var(--superficie-elevada);
+  --fc-today-bg-color: color-mix(in srgb, var(--oro-claro) 18%, transparent);
+  --fc-event-bg-color: var(--superficie-elevada);
+  --fc-event-border-color: var(--oro);
+  --fc-event-text-color: var(--texto);
+  --fc-button-bg-color: var(--superficie-elevada);
+  --fc-button-border-color: var(--borde);
+  --fc-button-text-color: var(--texto);
+  --fc-button-hover-bg-color: var(--superficie);
+  --fc-button-hover-border-color: var(--oro-claro);
+  --fc-button-active-bg-color: var(--oro-claro);
+  --fc-button-active-border-color: var(--oro);
+  --fc-now-indicator-color: var(--peligro);
+  font-family: var(--fuente-texto);
+}
+.calendario-omnistream .fc .fc-toolbar-title {
+  font-family: var(--fuente-titulo);
+  color: var(--texto);
+}
+.calendario-omnistream .fc .fc-button {
+  border-radius: 10px;
+  text-transform: capitalize;
+}
+.calendario-omnistream .fc .fc-event {
+  border-radius: 8px;
+  cursor: pointer;
+}
+.calendario-omnistream .fc .evento-idea {
+  border-style: dashed;
+  background-color: transparent;
+}
+.calendario-omnistream .fc .evento-resaltado {
+  box-shadow: 0 0 0 2px var(--oro);
+}
