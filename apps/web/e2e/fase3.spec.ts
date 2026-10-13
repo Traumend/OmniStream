@@ -93,7 +93,8 @@ test('el autoguardado conserva el borrador al recargar', async ({ page }) => {
   const titulo = `Autoguardado E2E ${Date.now()}`;
   await page.getByLabel('Título').fill(titulo);
   await expect(page.getByText('Guardado', { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/publicaciones\/[^/]+\/editar\?.*paso=contenido/);
+  await expect(page).toHaveURL(/\/crear\?.*id=[^&]+/);
+  await expect(page).toHaveURL(/paso=contenido/);
 
   await page.reload();
   await expect(page.getByLabel('Título')).toHaveValue(titulo);

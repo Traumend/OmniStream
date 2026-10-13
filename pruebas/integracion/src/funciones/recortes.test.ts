@@ -19,7 +19,12 @@ import { probar } from '@omnistream/functions/src/archivos/medios';
 import { guardarPublicacion } from '@omnistream/functions/src/publicacion/acciones/guardar';
 import type { TareaPublicacion } from '@omnistream/functions/src/publicacion/cola';
 import { fuentesDePublicacion } from '@omnistream/functions/src/publicacion/fuentes';
-import { ejecutarRecorte, type TareaRecorte } from '@omnistream/functions/src/publicacion/generarRecorte';
+import { eliminarPublicacion } from '@omnistream/functions/src/publicacion/acciones/cierre';
+import {
+  ejecutarRecorte,
+  opcionesEncolarRecorte,
+  type TareaRecorte,
+} from '@omnistream/functions/src/publicacion/generarRecorte';
 import type { DependenciasApi } from '@omnistream/functions/src/publicacion/porApi';
 import {
   ejecutarTarea,
@@ -362,7 +367,8 @@ describe('publicación con derivado', () => {
       'esperando',
     );
     expect(recibidos).toEqual([]);
-    expect(encolados).toEqual([]);
+    // La primera espera vuelve a pedir el recorte: un pedido de guardar pudo perderse.
+    expect(encolados).toEqual([{ postId, platform: 'tiktok', cropHash: hashRecorte(horizontal, tiktok916) }]);
     expect(encoladas).toHaveLength(1);
     expect(encoladas[0]?.tarea).toEqual({ postId, platform: 'tiktok', scheduleVersion: 1, esperaDerivado: 1 });
     expect(encoladas[0]?.opciones.id).toBe(`${idTarea(postId, 'tiktok', 1)}-d1`);
@@ -372,6 +378,23 @@ describe('publicación con derivado', () => {
     const destino = await leer(postId, 'tiktok');
     expect(destino.status).toBe('publicando');
     expect(destino.lease).toBeUndefined();
+  });
+
+  it('en las esperas siguientes un derivado pendiente no se vuelve a pedir', async () => {
+    const postId = await sembrarPublicacion(db, {
+      publicacion: { assetId: horizontal },
+      destinos: [
+        programado('tiktok', 'tiktok', {
+          status: 'publicando',
+          overrides: { crop: tiktok916 },
+          derivative: { cropHash: hashRecorte(horizontal, tiktok916), status: 'pendiente' },
+        }),
+      ],
+    });
+    const { api } = apiQueAnota();
+    const tareaEspera = { postId, platform: 'tiktok' as const, scheduleVersion: 1, esperaDerivado: 3 };
+    expect(await ejecutarTarea(db, tareaEspera, contexto(api))).toBe('esperando');
+    expect(encolados).toEqual([]);
   });
 
   it('sin derivado o con uno fallido pide generarlo antes de esperar', async () => {
@@ -472,5 +495,60 @@ describe('publicación con derivado', () => {
       'publicada',
     );
     expect(recibidos[0]?.miniatura).toBe(await tamano(`originales/${imagen}`));
+  });
+});
+
+describe('cola y limpieza de derivados', () => {
+  const tiktok916 = recorteCentrado('9:16', 1280, 720);
+  const borrarDerivados = async (postId: string, red?: Platform) => {
+    await bucket.deleteFiles({ prefix: red ? `derivados/${postId}/${red}/` : `derivados/${postId}/` });
+  };
+  const depsConLimpieza = () => ({ ...deps(), borrarDerivados });
+
+  it('cada pedido de recorte va a la cola sin id fijo, con 60 s de retraso y 30 min de plazo', () => {
+    const ahora = new Date('2030-01-01T10:00:00Z');
+    const opciones = opcionesEncolarRecorte(ahora);
+    expect(opciones).not.toHaveProperty('id');
+    expect(opciones.scheduleTime).toEqual(new Date('2030-01-01T10:01:00Z'));
+    expect(opciones.dispatchDeadlineSeconds).toBe(1800);
+  });
+
+  it('un recorte que ya está listo no se vuelve a generar', async () => {
+    const postId = await conDestinos(horizontal, [['tiktok', 'tiktok', tiktok916]]);
+    const t = tarea(postId, 'tiktok', horizontal, tiktok916);
+    expect(await ejecutarRecorte(db, bucket, t)).toBe('listo');
+    const ruta = (await leer(postId, 'tiktok')).derivative?.storagePath as string;
+    const [antes] = await bucket.file(ruta).getMetadata();
+    expect(await ejecutarRecorte(db, bucket, t)).toBe('listo');
+    const [despues] = await bucket.file(ruta).getMetadata();
+    expect(despues.generation).toBe(antes.generation);
+    expect((await leer(postId, 'tiktok')).derivative?.status).toBe('listo');
+  });
+
+  it('quitar el recorte o la red borra sus derivados de Storage', async () => {
+    const postId = await conDestinos(horizontal, [
+      ['tiktok', 'tiktok', tiktok916],
+      ['facebook', 'video_largo', tiktok916],
+    ]);
+    await ejecutarRecorte(db, bucket, tarea(postId, 'tiktok', horizontal, tiktok916));
+    await ejecutarRecorte(db, bucket, tarea(postId, 'facebook', horizontal, tiktok916));
+    await guardarPublicacion(
+      {
+        ...entradaDePrueba(horizontal, []),
+        postId,
+        destinos: [{ platform: 'tiktok', format: 'tiktok', overrides: {} }],
+      },
+      depsConLimpieza(),
+    );
+    expect(await archivosDe(postId, 'tiktok')).toEqual([]);
+    expect(await archivosDe(postId, 'facebook')).toEqual([]);
+  });
+
+  it('eliminar la publicación borra sus derivados', async () => {
+    const postId = await conDestinos(horizontal, [['tiktok', 'tiktok', tiktok916]]);
+    await ejecutarRecorte(db, bucket, tarea(postId, 'tiktok', horizontal, tiktok916));
+    expect(await archivosDe(postId, 'tiktok')).toHaveLength(1);
+    await eliminarPublicacion(postId, depsConLimpieza());
+    expect(await archivosDe(postId, 'tiktok')).toEqual([]);
   });
 });

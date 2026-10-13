@@ -40,6 +40,8 @@ export async function eliminarPublicacion(postId: string, deps: DependenciasAcci
   if (hijas.data().count > 0) throw precondicion('Esta publicación tiene Hijas. Desvincúlalas antes de eliminarla.');
   // Las tareas pendientes de esta publicación terminarán como 'inexistente'.
   await db.recursiveDelete(refPublicacion(db, postId));
+  // La retención busca los derivados por el archivo de una publicación que ya no existe: se borran aquí.
+  await deps.borrarDerivados?.(postId);
   return { postId };
 }
 

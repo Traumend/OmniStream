@@ -17,6 +17,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { logger } from 'firebase-functions/v2';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { recortarImagen, recortarVideo } from '../archivos/recortar';
+import { redactarUrls } from '../archivos/redaccion';
 import { urlDeLectura } from '../archivos/urlLectura';
 import { REGION } from '../config';
 import { leerAsset, refDestino, refPublicacion } from './firestore';
@@ -29,26 +30,27 @@ export interface TareaRecorte {
   cropHash: string;
 }
 
-// El id por defecto es `{postId}-{red}-{cropHash}`; `sufijo` lo distingue cuando hay que volver a pedir un recorte
-// que ya pasó por la cola (Cloud Tasks no reutiliza ids recientes).
-export type EncoladorRecortes = (tarea: TareaRecorte, opciones?: { sufijo?: string }) => Promise<void>;
+export type EncoladorRecortes = (tarea: TareaRecorte) => Promise<void>;
 
-// Retraso de la cola: mientras se arrastra el recorte con autoguardado, solo el último llega a generarse.
+// Retraso de la cola: mientras se arrastra el recorte con autoguardado, la mayoría de los pedidos llegan con la
+// huella ya vieja y terminan sin hacer nada.
 const RETRASO_RECORTE_MS = 60_000;
 const MAX_INTENTOS_RECORTE = 3;
+// El plazo de cada intento cubre el tiempo máximo de la función; sin él, Cloud Tasks reintenta a los 10 minutos
+// mientras el primer intento sigue codificando.
+const PLAZO_RECORTE_SEG = 1800;
+
+// Sin id fijo: Cloud Tasks no reutiliza un id durante cerca de una hora, y un recorte que vuelve a un valor
+// anterior tiene la misma huella. Los pedidos repetidos son inofensivos porque ejecutarRecorte omite los viejos y
+// no regenera un derivado que ya está listo.
+export function opcionesEncolarRecorte(ahora: Date): { scheduleTime: Date; dispatchDeadlineSeconds: number } {
+  return { scheduleTime: new Date(ahora.getTime() + RETRASO_RECORTE_MS), dispatchDeadlineSeconds: PLAZO_RECORTE_SEG };
+}
 
 export function encoladorRecortes(): EncoladorRecortes {
   const cola = getFunctions().taskQueue<TareaRecorte>(`locations/${REGION}/functions/generarRecorte`);
-  return async (tarea, { sufijo } = {}) => {
-    try {
-      await cola.enqueue(tarea, {
-        id: `${tarea.postId}-${tarea.platform}-${tarea.cropHash}${sufijo ? `-${sufijo}` : ''}`,
-        scheduleTime: new Date(Date.now() + RETRASO_RECORTE_MS),
-      });
-    } catch (error) {
-      // El id incluye la huella: si ya existe, ese recorte ya está en la cola.
-      if (!String((error as { code?: string }).code).endsWith('task-already-exists')) throw error;
-    }
+  return async (tarea) => {
+    await cola.enqueue(tarea, opcionesEncolarRecorte(new Date()));
   };
 }
 
@@ -93,6 +95,12 @@ export async function ejecutarRecorte(
   const destino = leerDestino((await refDestino(db, tarea.postId, tarea.platform).get()).data());
   const crop = destino.overrides.crop;
   if (!crop) return 'omitido';
+  // Un pedido repetido de un recorte que ya está listo no lo vuelve a generar.
+  const actual = destino.derivative;
+  if (actual?.status === 'listo' && actual.cropHash === tarea.cropHash && actual.storagePath) {
+    const [existe] = await bucket.file(actual.storagePath).exists();
+    if (existe) return 'listo';
+  }
 
   const documento = await db.collection('assets').doc(assetId).get();
   const asset = documento.exists ? leerAsset(documento.id, documento.data()) : null;
@@ -136,7 +144,7 @@ export async function ejecutarRecorte(
       await bucket.file(ruta).save(await recortarImagen(original, crop, salida), opciones);
     }
   } catch (error) {
-    logger.error('No se pudo generar el recorte', { tarea, error: String(error) });
+    logger.error('No se pudo generar el recorte', { tarea, error: redactarUrls(String(error)) });
     if (!deps.ultimoIntento) throw error;
     const fallido: Derivado = { cropHash: tarea.cropHash, status: 'fallido', error: 'No se pudo generar el recorte.' };
     return (await escribirSiVigente(db, tarea, fallido)) ? 'fallido' : 'omitido';

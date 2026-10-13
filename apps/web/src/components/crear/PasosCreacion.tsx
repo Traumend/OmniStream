@@ -95,11 +95,20 @@ function sugerencias(asset: Asset | undefined): FormularioPublicacion['redes'] {
   return asset ? Object.fromEntries(sugerirDestinos(asset).map((d) => [d.platform, d.format])) : {};
 }
 
+function sinRecortes(overrides: FormularioPublicacion['overrides']): FormularioPublicacion['overrides'] {
+  return Object.fromEntries(
+    Object.entries(overrides).flatMap(([red, o]) => {
+      const resto = Object.fromEntries(Object.entries(o ?? {}).filter(([clave]) => clave !== 'crop'));
+      return Object.keys(resto).length > 0 ? [[red, resto]] : [];
+    }),
+  );
+}
+
 // El paso va en la URL (?paso=) para que una recarga lo conserve.
-function urlConPaso(paso: Paso, ruta = window.location.pathname): string {
+function urlConParametros(cambios: Record<string, string>): string {
   const parametros = new URLSearchParams(window.location.search);
-  parametros.set('paso', paso);
-  return `${ruta}?${parametros.toString()}`;
+  for (const [clave, valor] of Object.entries(cambios)) parametros.set(clave, valor);
+  return `${window.location.pathname}?${parametros.toString()}`;
 }
 
 // La URL de descarga se pide solo al abrir la vista previa.
@@ -146,10 +155,8 @@ export function PasosCreacion({
   // El autoguardado vive todo el tiempo que el editor esté montado; lee las props más recientes por refs.
   const guardarRef = useRef(alGuardarBorrador);
   const postIdRef = useRef(postId);
-  const pasoRef = useRef(paso);
   useEffect(() => {
     guardarRef.current = alGuardarBorrador;
-    pasoRef.current = paso;
   });
   const autoguardadoRef = useRef<Autoguardado | null>(null);
   // Se crea al primer uso, desde un evento, y no durante el render.
@@ -162,14 +169,9 @@ export function PasosCreacion({
         if (!postIdRef.current) {
           postIdRef.current = resultado.postId;
           setPostId(resultado.postId);
-          // En Crear, el primer guardado pasa a la URL de edición sin volver a montar el editor.
-          if (!inicial) {
-            window.history.replaceState(
-              null,
-              '',
-              urlConPaso(pasoRef.current, `/publicaciones/${resultado.postId}/editar`),
-            );
-          }
+          // En Crear, el primer guardado deja el id en la URL (?id=) sin cambiar de ruta: una recarga o volver
+          // atrás abre el borrador en vez de un formulario vacío.
+          if (!inicial) window.history.replaceState(null, '', urlConParametros({ id: resultado.postId }));
         }
         return resultado;
       },
@@ -216,11 +218,13 @@ export function PasosCreacion({
   };
   const actualizar = (cambios: Partial<FormularioPublicacion>) => cambiar({ ...form, ...cambios });
 
+  // Los recortes se miden sobre el cuadro del archivo: con otro archivo dejan de servir y se quitan.
   const elegirArchivo = (id: string) =>
     cambiar({
       ...form,
       assetId: id,
       redes: Object.keys(form.redes).length === 0 ? sugerencias(archivos.find((a) => a.id === id)) : form.redes,
+      overrides: id === form.assetId ? form.overrides : sinRecortes(form.overrides),
     });
 
   const alternarRed = (red: Platform, marcada: boolean) => {
@@ -287,7 +291,7 @@ export function PasosCreacion({
 
   const irA = (siguiente: Paso) => {
     setPaso(siguiente);
-    window.history.replaceState(null, '', urlConPaso(siguiente));
+    window.history.replaceState(null, '', urlConParametros({ paso: siguiente }));
   };
 
   const contadores = entrada.destinos.flatMap((destino) => {

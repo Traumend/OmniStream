@@ -111,8 +111,9 @@ it('un borrador con título se autoguarda', async () => {
   await waitFor(() => expect(alGuardarBorrador).toHaveBeenCalled());
   expect(alGuardarBorrador.mock.lastCall?.[0]).toMatchObject({ title: 'Hola', assetId: 'a1' });
   expect(await screen.findByText('Guardado')).toBeInTheDocument();
-  // El primer guardado de Crear pasa la URL a la de edición sin volver a montar el editor.
-  expect(window.location.pathname).toBe('/publicaciones/nuevo/editar');
+  // El primer guardado deja el id en la URL de Crear, sin cambiar de ruta ni volver a montar el editor.
+  expect(new URLSearchParams(window.location.search).get('id')).toBe('nuevo');
+  expect(window.location.pathname).not.toMatch(/^\/publicaciones\//);
 });
 
 it('una publicación programada no se autoguarda y ofrece Guardar cambios', async () => {
@@ -426,4 +427,30 @@ it('Programar guarda lo pendiente antes de programar', async () => {
   expect(alGuardarBorrador).toHaveBeenCalledTimes(1);
   expect(alGuardarBorrador.mock.invocationCallOrder[0]).toBeLessThan(alEnviar.mock.invocationCallOrder[0] as number);
   expect(alEnviar).toHaveBeenCalledWith(expect.objectContaining({ postId: 'nuevo' }), 'programar');
+});
+
+it('cambiar de archivo quita los recortes de cada red', async () => {
+  const horizontal: Asset = {
+    ...base,
+    id: 'a3',
+    originalName: 'horizontal.mp4',
+    width: 3840,
+    height: 2160,
+    aspect: 16 / 9,
+  };
+  const { user, alEnviar } = montar({ archivos: [horizontal, base] });
+  await elegirArchivo(user, 'horizontal.mp4');
+  await escribirTitulo(user, 'Hola');
+  await irA(user, 'Destinos');
+  const casillaTiktok = screen.getByRole('checkbox', { name: 'TikTok' }) as HTMLInputElement;
+  if (!casillaTiktok.checked) await user.click(casillaTiktok);
+  await irA(user, 'Canvas');
+  await user.click(within(screen.getByRole('list', { name: 'Redes' })).getByRole('button', { name: /^TikTok/ }));
+  await user.click(screen.getByRole('button', { name: 'Aplicar guía 9:16' }));
+  await elegirArchivo(user, 'vertical.mp4');
+  await irA(user, 'Publicar');
+  await user.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+  await waitFor(() => expect(alEnviar).toHaveBeenCalled());
+  const tiktok = alEnviar.mock.calls[0]?.[0].destinos.find((d: { platform: string }) => d.platform === 'tiktok');
+  expect(tiktok?.overrides?.crop).toBeUndefined();
 });

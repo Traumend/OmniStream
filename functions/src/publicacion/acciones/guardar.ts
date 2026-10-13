@@ -14,6 +14,7 @@ import {
   type Destino,
   type EntradaPublicacion,
   type EstadoReferencia,
+  type Platform,
   type RespuestaPublicaciones,
 } from '@omnistream/core';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -117,8 +118,10 @@ export async function guardarPublicacion(
   const promocionNueva = kind === 'principal' ? await promocionInicial(db, datos.scheduledAt) : undefined;
 
   const recortesPedidos: TareaRecorte[] = [];
+  const sinRecorte: Platform[] = [];
   const quitados = await db.runTransaction(async (tx) => {
     recortesPedidos.length = 0;
+    sinRecorte.length = 0;
     const fresca = existente ? await leerPublicacionCompleta(db, ref.id, tx) : null;
     if (existente && (!fresca || !esEditable(fresca.destinos.map((d) => d.status)))) throw noEditable();
     const actuales = new Map<string, Destino>((fresca?.destinos ?? []).map((d) => [d.platform, d]));
@@ -156,6 +159,7 @@ export async function guardarPublicacion(
       const pedirDerivado = cropHash !== undefined && actual?.derivative?.cropHash !== cropHash;
       if (pedirDerivado) recortesPedidos.push({ postId: ref.id, platform: destino.platform, cropHash });
       const derivadoNuevo = pedirDerivado ? { derivative: { cropHash, status: 'pendiente' } } : {};
+      if (!cropHash && (actual?.overrides.crop || actual?.derivative)) sinRecorte.push(destino.platform);
       if (!actual) {
         tx.set(destinoRef, {
           ...destinoNuevo(destino.platform, destino.format, {
@@ -185,6 +189,8 @@ export async function guardarPublicacion(
   });
 
   if (deps.encolarRecorte) for (const tarea of recortesPedidos) await deps.encolarRecorte(tarea);
+  // Los derivados de un recorte quitado o de una red quitada ya no se usan.
+  for (const red of [...sinRecorte, ...quitados.map((d) => d.platform)]) await deps.borrarDerivados?.(ref.id, red);
 
   // Borra también los intentos de los destinos quitados.
   for (const destino of quitados) await db.recursiveDelete(refDestino(db, ref.id, destino.platform));

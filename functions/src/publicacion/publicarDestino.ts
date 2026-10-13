@@ -234,14 +234,12 @@ async function esperarDerivado(p: {
 
   const cropHash = hashRecorte(asset.id, crop);
   const derivado = destino.derivative;
-  const pedir = !derivado || derivado.status === 'fallido' || derivado.cropHash !== cropHash;
-  if (pedir) {
-    await contexto.encolarRecorte?.(
-      { postId: tarea.postId, platform: red, cropHash },
-      { sufijo: `v${tarea.scheduleVersion}` },
-    );
+  const sinDerivado = !derivado || derivado.status === 'fallido' || derivado.cropHash !== cropHash;
+  // La primera espera vuelve a pedir el recorte aunque figure pendiente: el pedido de guardar pudo perderse.
+  if (sinDerivado || esperas === 0) {
+    await contexto.encolarRecorte?.({ postId: tarea.postId, platform: red, cropHash });
   }
-  await finalizar(db, ref, attemptId, ahora, pedir ? { derivative: { cropHash, status: 'pendiente' } } : {}, {
+  await finalizar(db, ref, attemptId, ahora, sinDerivado ? { derivative: { cropHash, status: 'pendiente' } } : {}, {
     stage: 'recorte',
     result: 'omitido',
   });

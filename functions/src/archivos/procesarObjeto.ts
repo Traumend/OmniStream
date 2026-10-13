@@ -2,14 +2,13 @@ import { join } from 'node:path';
 import { rutaFotograma, tiemposDeFotogramas, type EstadoAsset, type Fotograma } from '@omnistream/core';
 import { logger } from 'firebase-functions';
 import { analizarSalidaFfprobe } from './analizar';
+import { redactarUrls } from './redaccion';
 import type { convertirHeicAJpeg, extraerFotograma, probar, procesarImagen } from './medios';
 
 export const MENSAJE_ERROR_LECTURA = 'No se pudo leer el archivo. Puede estar dañado o en un formato no soportado.';
 
 const PREFIJO = 'originales/';
 
-// Quita los parámetros de consulta de las URL (firmas de acceso temporal) antes de escribir en los logs.
-const redactarUrls = (texto: string) => texto.replace(/(https?:\/\/[^\s?'"]+)\?[^\s'"]*/g, '$1?[redactado]');
 const FOTOGRAMAS: Fotograma[] = ['start', 'middle', 'end'];
 
 export interface DependenciasProcesamiento {

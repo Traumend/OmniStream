@@ -307,6 +307,15 @@ describe('recorte y hora por red', () => {
       },
     ]);
   });
+  it('un recorte que ya no corresponde a la forma del archivo es error', () => {
+    // Recorte 9:16 hecho sobre un 16:9 y aplicado a un video vertical: quedaría estirado.
+    const problemas = validar([d('tiktok', 'tiktok', { overrides: { crop: recorte916 } })]);
+    expect(problemas).toContainEqual({
+      nivel: 'error',
+      red: 'tiktok',
+      mensaje: 'El recorte de TikTok ya no corresponde al archivo; vuelve a elegirlo.',
+    });
+  });
   it('la hora propia de una red se valida por separado', () => {
     const ayer = new Date('2026-10-06T12:00:00Z');
     const problemas = validar([d('tiktok', 'tiktok', { overrides: { scheduledAt: ayer } }), d('facebook', 'reel')]);

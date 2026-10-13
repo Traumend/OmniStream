@@ -1,5 +1,6 @@
 import { accionPublicacionSchema, type AccionPublicacion, type RespuestaPublicaciones } from '@omnistream/core';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { claveCifrado, REGION, SECRETOS_CONECTORES } from '../config';
 import { crearCifrador } from '../conexiones/cifrado';
@@ -87,6 +88,10 @@ export const publicaciones = onCall(
         ahora: new Date(),
         encolar: encoladorCloudTasks(),
         encolarRecorte: encoladorRecortes(),
+        borrarDerivados: (postId, red) =>
+          getStorage()
+            .bucket()
+            .deleteFiles({ prefix: red ? `derivados/${postId}/${red}/` : `derivados/${postId}/` }),
         sesion: (red) => sesionVigente(red, sesionesReales()),
         http: fetch,
       }),

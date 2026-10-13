@@ -2,10 +2,11 @@
 
 import { modoDePublicacion } from '@omnistream/core';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { toast } from 'sonner';
 import { MiniaturaArchivo } from '@/components/biblioteca/MiniaturaArchivo';
 import { Cargando } from '@/components/comunes/Cargando';
+import { EditorExistente } from '@/components/crear/EditorExistente';
 import { PasosCreacion } from '@/components/crear/PasosCreacion';
 import { ImportarYoutube } from '@/components/publicaciones/ImportarYoutube';
 import { useEstadoAjustes } from '@/lib/ajustes/useAjustes';
@@ -65,6 +66,14 @@ function Crear() {
   );
 }
 
+// Tras el primer autoguardado la URL lleva ?id=. Se lee solo al montar: mientras se edita, el editor sigue montado;
+// al recargar o volver atrás, se abre el borrador guardado.
+function CrearOContinuar() {
+  const parametros = useSearchParams();
+  const [idInicial] = useState(() => parametros.get('id'));
+  return idInicial ? <EditorExistente id={idInicial} /> : <Crear />;
+}
+
 export default function Pagina() {
   return (
     <section className="flex flex-col gap-6">
@@ -73,7 +82,7 @@ export default function Pagina() {
         <p className="text-texto-secundario">Archivo, destinos, canvas, contenido, vista previa y publicación.</p>
       </header>
       <Suspense fallback={<Cargando />}>
-        <Crear />
+        <CrearOContinuar />
       </Suspense>
     </section>
   );

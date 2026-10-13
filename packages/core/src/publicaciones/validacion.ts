@@ -46,6 +46,8 @@ export interface ContextoValidacion {
 }
 
 const RESOLUCION_MINIMA = 720;
+// Margen para el redondeo a píxeles pares de recortes pequeños.
+const TOLERANCIA_FORMA_RECORTE = 0.05;
 const NOMBRES_MIME: Record<string, string> = {
   'image/jpeg': 'JPEG',
   'image/png': 'PNG',
@@ -138,6 +140,15 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
           }
           if (archivo.width && archivo.height) {
             const px = pixelesDeRecorte(crop, archivo.width, archivo.height);
+            // Un recorte guardado para otro archivo no tiene su proporción en píxeles: saldría estirado.
+            const esperada = VALOR_PROPORCION[crop.aspect];
+            if (Math.abs(px.w / px.h - esperada) / esperada > TOLERANCIA_FORMA_RECORTE) {
+              agregar(
+                'error',
+                `El recorte de ${ETIQUETAS_RED[red]} ya no corresponde al archivo; vuelve a elegirlo.`,
+                red,
+              );
+            }
             if (Math.min(px.w, px.h) < RESOLUCION_MINIMA) {
               agregar('advertencia', `${regla.etiqueta}: el recorte queda por debajo de 720p.`, red);
             }
