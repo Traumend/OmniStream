@@ -43,6 +43,7 @@ import {
 import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
 import { Seccion } from './comunes';
+import { AjustesRed } from './canvas/AjustesRed';
 import { MarcoRecorte } from './canvas/MarcoRecorte';
 import { PasoArchivo } from './PasoArchivo';
 import { PasoCanvas } from './PasoCanvas';
@@ -231,6 +232,13 @@ export function PasosCreacion({
     actualizar({ overrides });
   };
 
+  const reemplazarOverrides = (red: Platform, nuevos: FormularioOverrides) => {
+    const overrides = { ...form.overrides };
+    if (Object.keys(nuevos).length > 0) overrides[red] = nuevos;
+    else delete overrides[red];
+    actualizar({ overrides });
+  };
+
   // Estado del derivado guardado, solo si corresponde al recorte que se ve ahora.
   const estadoDerivado = (red: Platform, crop: Crop | undefined) => {
     const derivado = inicial?.destinos.find((d) => d.platform === red)?.derivative;
@@ -240,20 +248,32 @@ export function PasosCreacion({
   function controlesDeRed(red: Platform, imagen: string | undefined) {
     const formato = form.redes[red];
     const regla = formato ? REGLAS[red][formato] : undefined;
-    if (!asset?.width || !asset.height || !regla) return null;
-    const crop = form.overrides[red]?.crop;
+    const overrides = form.overrides[red] ?? {};
+    const crop = overrides.crop;
     return (
-      <MarcoRecorte
-        imagen={imagen}
-        ancho={asset.width}
-        alto={asset.height}
-        crop={crop}
-        regla={regla}
-        compatible={asset.aspect ? proporcionCompatible(regla, asset.aspect) : true}
-        permitido={recortePermitido(asset)}
-        estadoDerivado={estadoDerivado(red, crop)}
-        alCambiar={(nuevo) => cambiarOverrides(red, { crop: nuevo })}
-      />
+      <>
+        {asset?.width && asset.height && regla && (
+          <MarcoRecorte
+            imagen={imagen}
+            ancho={asset.width}
+            alto={asset.height}
+            crop={crop}
+            regla={regla}
+            compatible={asset.aspect ? proporcionCompatible(regla, asset.aspect) : true}
+            permitido={recortePermitido(asset)}
+            estadoDerivado={estadoDerivado(red, crop)}
+            alCambiar={(nuevo) => cambiarOverrides(red, { crop: nuevo })}
+          />
+        )}
+        <AjustesRed
+          red={red}
+          base={{ text: form.text, hashtags: form.hashtags, title: form.title, fecha: form.fecha, hora: form.hora }}
+          overrides={overrides}
+          zona={zona}
+          ahora={ahora}
+          alCambiar={(nuevos) => reemplazarOverrides(red, nuevos)}
+        />
+      </>
     );
   }
 

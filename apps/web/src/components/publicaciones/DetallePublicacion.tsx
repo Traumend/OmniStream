@@ -4,6 +4,7 @@ import {
   esEditable,
   ESTADOS_CANCELABLES,
   ETIQUETAS_ESTADO_DESTINO,
+  esPersonalizado,
   ETIQUETAS_ESTADO_PUBLICACION,
   ETIQUETAS_RED,
   ETIQUETAS_TIPO,
@@ -84,6 +85,9 @@ function DestinoDetalle({
           {REGLAS[red][destino.format]?.etiqueta ?? ETIQUETAS_RED[red]}
         </h3>
         <span className="text-sm text-texto-secundario">{ETIQUETAS_ESTADO_DESTINO[destino.status]}</span>
+        {esPersonalizado(destino) && (
+          <span className="rounded-full border border-oro px-2 py-0.5 text-xs text-oro-profundo">Personalizado</span>
+        )}
       </div>
       {destino.scheduledAt && (
         <p className="cifras text-sm text-texto-secundario">Hora: {formatearFechaHora(destino.scheduledAt, zona)}</p>

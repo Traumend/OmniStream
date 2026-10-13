@@ -249,3 +249,11 @@ it('una publicación independiente no muestra promoción', () => {
   montar();
   expect(screen.queryByRole('region', { name: 'Promoción' })).not.toBeInTheDocument();
 });
+
+it('un destino con overrides muestra Personalizado', () => {
+  montar({
+    destinos: [destino('tiktok', 'borrador', { overrides: { text: 'Propio' } }), destino('facebook', 'borrador')],
+  });
+  expect(within(screen.getByRole('region', { name: 'TikTok' })).getByText('Personalizado')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Facebook' })).queryByText('Personalizado')).not.toBeInTheDocument();
+});
