@@ -69,6 +69,12 @@ it('mientras se prepara la descarga no dice que el archivo falta', () => {
   expect(screen.queryByText('El archivo ya no está disponible.')).not.toBeInTheDocument();
 });
 
+it('mientras se genera el recorte lo dice', () => {
+  montar({ generandoRecorte: true });
+  expect(screen.getByText('Generando el recorte para esta red…')).toBeInTheDocument();
+  expect(screen.queryByText('El archivo ya no está disponible.')).not.toBeInTheDocument();
+});
+
 it('sin enlace de descarga avisa que el archivo no está disponible', () => {
   montar();
   expect(screen.getByText('El archivo ya no está disponible.')).toBeInTheDocument();

@@ -29,7 +29,9 @@ export interface TareaRecorte {
   cropHash: string;
 }
 
-export type EncoladorRecortes = (tarea: TareaRecorte) => Promise<void>;
+// El id por defecto es `{postId}-{red}-{cropHash}`; `sufijo` lo distingue cuando hay que volver a pedir un recorte
+// que ya pasó por la cola (Cloud Tasks no reutiliza ids recientes).
+export type EncoladorRecortes = (tarea: TareaRecorte, opciones?: { sufijo?: string }) => Promise<void>;
 
 // Retraso de la cola: mientras se arrastra el recorte con autoguardado, solo el último llega a generarse.
 const RETRASO_RECORTE_MS = 60_000;
@@ -37,10 +39,10 @@ const MAX_INTENTOS_RECORTE = 3;
 
 export function encoladorRecortes(): EncoladorRecortes {
   const cola = getFunctions().taskQueue<TareaRecorte>(`locations/${REGION}/functions/generarRecorte`);
-  return async (tarea) => {
+  return async (tarea, { sufijo } = {}) => {
     try {
       await cola.enqueue(tarea, {
-        id: `${tarea.postId}-${tarea.platform}-${tarea.cropHash}`,
+        id: `${tarea.postId}-${tarea.platform}-${tarea.cropHash}${sufijo ? `-${sufijo}` : ''}`,
         scheduleTime: new Date(Date.now() + RETRASO_RECORTE_MS),
       });
     } catch (error) {

@@ -69,6 +69,7 @@ export function PaquetePendiente({
   urlPrincipal,
   urlDescarga,
   preparandoDescarga = false,
+  generandoRecorte = false,
   urlMiniatura,
   zona,
   alMarcarPublicada,
@@ -79,6 +80,7 @@ export function PaquetePendiente({
   urlPrincipal?: string;
   urlDescarga?: string;
   preparandoDescarga?: boolean;
+  generandoRecorte?: boolean;
   urlMiniatura?: string;
   zona: string;
   alMarcarPublicada(url: string): Promise<void>;
@@ -133,6 +135,10 @@ export function PaquetePendiente({
               </a>
             </Button>
           </div>
+        ) : generandoRecorte ? (
+          <p role="status" className="text-texto-secundario">
+            Generando el recorte para esta red…
+          </p>
         ) : preparandoDescarga ? (
           <p role="status" className="text-texto-secundario">
             Preparando la descarga…

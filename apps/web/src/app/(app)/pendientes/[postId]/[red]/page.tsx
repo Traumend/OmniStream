@@ -1,6 +1,12 @@
 'use client';
 
-import { ETIQUETAS_ESTADO_DESTINO, PLATAFORMAS, urlVideoYoutube, type Platform } from '@omnistream/core';
+import {
+  ETIQUETAS_ESTADO_DESTINO,
+  PLATAFORMAS,
+  rutaDePublicacion,
+  urlVideoYoutube,
+  type Platform,
+} from '@omnistream/core';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -23,10 +29,12 @@ export default function Paquete() {
   const { ajustes, cargando: cargandoAjustes } = useEstadoAjustes();
   const { archivos, cargando: cargandoArchivos } = useArchivos();
   const asset = archivos.find((a) => a.id === publicacion?.assetId);
-  const descarga = useUrlDescarga(asset?.status === 'purgado' ? undefined : asset?.storagePath);
-  const archivo = estadoDescarga({ cargandoArchivos, asset, ...descarga });
-  const miniaturas = useUrlsFotogramas(asset);
   const destino = destinos.find((d) => d.platform === red);
+  // Con recorte se descarga el derivado de esta red; sin él, el original.
+  const ruta = asset && asset.status !== 'purgado' ? (destino ? rutaDePublicacion(asset, destino) : null) : null;
+  const descarga = useUrlDescarga(ruta ?? undefined);
+  const archivo = estadoDescarga({ cargandoArchivos, asset, destino, ...descarga });
+  const miniaturas = useUrlsFotogramas(asset);
   const remotoPrincipal = principal.destinos.find((d) => d.platform === 'youtube')?.remote;
 
   async function alMarcarPublicada(url: string) {
@@ -62,6 +70,7 @@ export default function Paquete() {
       urlPrincipal={remotoPrincipal ? urlVideoYoutube(remotoPrincipal.id) : undefined}
       urlDescarga={archivo === 'lista' ? descarga.url : undefined}
       preparandoDescarga={archivo === 'preparando'}
+      generandoRecorte={archivo === 'generando'}
       urlMiniatura={miniaturas[miniatura && 'frame' in miniatura ? miniatura.frame : 'start']}
       zona={ajustes.timezone}
       alMarcarPublicada={alMarcarPublicada}

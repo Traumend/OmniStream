@@ -1,5 +1,6 @@
 import type { Asset } from '../archivos/asset';
 import { VALOR_PROPORCION, type Proporcion } from './reglas';
+import type { Destino } from './tipos';
 
 export type { Proporcion } from './reglas';
 
@@ -92,4 +93,17 @@ export function hashRecorte(assetId: string, crop: Crop): string {
 export function recortePermitido(asset: Pick<Asset, 'kind' | 'durationSec' | 'sizeBytes'>): boolean {
   if (asset.kind !== 'video') return true;
   return (asset.durationSec ?? 0) <= LIMITE_RECORTE_VIDEO.duracionSec && asset.sizeBytes <= LIMITE_RECORTE_VIDEO.bytes;
+}
+
+// Archivo que publica un destino: el original sin recorte; con recorte, el derivado listo de la huella vigente.
+// null mientras ese derivado no exista: nunca se publica el original en lugar del recorte.
+export function rutaDePublicacion(
+  asset: Pick<Asset, 'id' | 'storagePath'>,
+  destino: Pick<Destino, 'overrides' | 'derivative'>,
+): string | null {
+  const crop = destino.overrides.crop;
+  if (!crop) return asset.storagePath;
+  const derivado = destino.derivative;
+  const vigente = derivado?.status === 'listo' && derivado.cropHash === hashRecorte(asset.id, crop);
+  return vigente && derivado.storagePath ? derivado.storagePath : null;
 }

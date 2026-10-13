@@ -3,12 +3,15 @@ import {
   decidirToma,
   destinoEfectivo,
   ETIQUETAS_RED,
+  hashRecorte,
   idContinuacion,
+  idTarea,
   LEASE_MS,
   leerDestino,
   MAX_INTENTOS_TAREA,
   mensajeProblemas,
   proveedorDe,
+  rutaDePublicacion,
   urlVideoYoutube,
   validarPublicacion,
   type Asset,
@@ -30,6 +33,7 @@ import { firmarTokenMedia } from '../conexiones/media';
 import { ADAPTADORES, proveedoresReales } from '../conexiones/proveedores';
 import { marcarExpirada, sesionVigente, type DependenciasSesion } from '../conexiones/sesiones';
 import { encoladorCloudTasks, type TareaPublicacion } from './cola';
+import { encoladorRecortes, type EncoladorRecortes } from './generarRecorte';
 import { leerContexto, leerPublicacionCompleta, refDestino } from './firestore';
 import { fuentesDePublicacion } from './fuentes';
 import { crearNotificador, enviarPushFcm } from './notificaciones';
@@ -41,7 +45,12 @@ interface ContextoTarea {
   ahora: () => Date;
   ultimoIntento: boolean;
   api?: DependenciasApi;
+  encolarRecorte?: EncoladorRecortes;
 }
+
+// Decisión 1 del plan de la fase 3: publicarDestino no genera recortes, espera el derivado hasta 30 minutos.
+export const ESPERA_DERIVADO_SEG = 120;
+export const MAX_ESPERAS_DERIVADO = 15;
 
 const VENTANA_AMBIGUO_MS = 30 * 60 * 1000;
 const HORA_MS = 60 * 60 * 1000;
@@ -194,6 +203,60 @@ async function publicarPorApi(p: {
   }
 }
 
+// Con recorte y sin su derivado listo, la tarea libera el lease y vuelve en 120 s sin publicar el original.
+async function esperarDerivado(p: {
+  db: Firestore;
+  ref: DocumentReference;
+  attemptId: string;
+  tarea: TareaPublicacion;
+  destino: Destino;
+  asset: Asset | null;
+  contexto: ContextoTarea;
+}): Promise<ResultadoTarea | undefined> {
+  const { db, ref, attemptId, tarea, destino, asset, contexto } = p;
+  const crop = destino.overrides.crop;
+  if (!crop || !asset || rutaDePublicacion(asset, destino)) return undefined;
+  const red = tarea.platform;
+  const ahora = contexto.ahora();
+  const esperas = tarea.esperaDerivado ?? 0;
+  if (esperas >= MAX_ESPERAS_DERIVADO) {
+    const mensaje = `No se pudo generar el recorte para ${ETIQUETAS_RED[red]}.`;
+    await finalizar(
+      db,
+      ref,
+      attemptId,
+      ahora,
+      { status: 'fallida', lastError: errorDe('recorte', 'definitivo', mensaje, ahora) },
+      { stage: 'recorte', result: 'error', error: mensaje },
+    );
+    return 'fallida';
+  }
+
+  const cropHash = hashRecorte(asset.id, crop);
+  const derivado = destino.derivative;
+  const pedir = !derivado || derivado.status === 'fallido' || derivado.cropHash !== cropHash;
+  if (pedir) {
+    await contexto.encolarRecorte?.(
+      { postId: tarea.postId, platform: red, cropHash },
+      { sufijo: `v${tarea.scheduleVersion}` },
+    );
+  }
+  await finalizar(db, ref, attemptId, ahora, pedir ? { derivative: { cropHash, status: 'pendiente' } } : {}, {
+    stage: 'recorte',
+    result: 'omitido',
+  });
+  const siguiente = esperas + 1;
+  const encolar = contexto.api?.encolar ?? encoladorCloudTasks();
+  await encolar(
+    { postId: tarea.postId, platform: red, scheduleVersion: tarea.scheduleVersion, esperaDerivado: siguiente },
+    {
+      id: `${idTarea(tarea.postId, red, tarea.scheduleVersion)}-d${siguiente}`,
+      scheduleTime: new Date(ahora.getTime() + ESPERA_DERIVADO_SEG * 1000),
+    },
+  );
+  return 'esperando';
+}
+
 export async function ejecutarTarea(
   db: Firestore,
   tarea: TareaPublicacion,
@@ -257,6 +320,17 @@ export async function ejecutarTarea(
       );
       return 'fallida';
     }
+
+    const espera = await esperarDerivado({
+      db,
+      ref,
+      attemptId,
+      tarea,
+      destino,
+      asset: relacionados.asset,
+      contexto,
+    });
+    if (espera) return espera;
 
     if (destino.publishMode === 'api' && contexto.api && relacionados.asset) {
       return await publicarPorApi({
@@ -360,6 +434,7 @@ export const publicarDestino = onTaskDispatched<TareaPublicacion>(
       ahora: () => new Date(),
       ultimoIntento: solicitud.retryCount >= MAX_INTENTOS_TAREA - 1,
       api: dependenciasApi(),
+      encolarRecorte: encoladorRecortes(),
     });
   },
 );
