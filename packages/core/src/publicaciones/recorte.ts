@@ -44,12 +44,7 @@ export function recorteCentrado(aspect: Proporcion, ancho: number, alto: number)
 
 // Mueve (dx, dy en unidades normalizadas) y escala desde el centro. La escala se acota para que el recorte
 // quepa en el cuadro y ningún lado baje del mínimo; la proporción se conserva porque ambos lados escalan igual.
-export function ajustarRecorte(
-  crop: Crop,
-  cambio: { dx?: number; dy?: number; escala?: number },
-  _ancho: number,
-  _alto: number,
-): Crop {
+export function ajustarRecorte(crop: Crop, cambio: { dx?: number; dy?: number; escala?: number }): Crop {
   const escalaMinima = Math.max(LADO_MINIMO_RECORTE / crop.w, LADO_MINIMO_RECORTE / crop.h);
   const escalaMaxima = Math.min(1 / crop.w, 1 / crop.h);
   const escala = acotar(cambio.escala ?? 1, Math.min(escalaMinima, escalaMaxima), escalaMaxima);
@@ -96,7 +91,5 @@ export function hashRecorte(assetId: string, crop: Crop): string {
 
 export function recortePermitido(asset: Pick<Asset, 'kind' | 'durationSec' | 'sizeBytes'>): boolean {
   if (asset.kind !== 'video') return true;
-  return (
-    (asset.durationSec ?? 0) <= LIMITE_RECORTE_VIDEO.duracionSec && asset.sizeBytes <= LIMITE_RECORTE_VIDEO.bytes
-  );
+  return (asset.durationSec ?? 0) <= LIMITE_RECORTE_VIDEO.duracionSec && asset.sizeBytes <= LIMITE_RECORTE_VIDEO.bytes;
 }

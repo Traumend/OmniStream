@@ -33,3 +33,17 @@ it('Instagram usa el título de la publicación, sin etiquetas, y conserva la du
   const e = destinoEfectivo(publicacion, { platform: 'instagram', format: 'reel', overrides: {} }, { duracionSeg: 42 });
   expect(e).toMatchObject({ titulo: 'Mi video', etiquetas: [], duracionSeg: 42 });
 });
+
+it('el destino efectivo lleva el recorte y el título propio', () => {
+  const crop = { aspect: '9:16', x: 0.3, y: 0, w: 0.3164, h: 1 } as const;
+  const e = destinoEfectivo(publicacion, {
+    platform: 'tiktok',
+    format: 'tiktok',
+    overrides: { title: 'Propio', crop },
+  });
+  expect(e.titulo).toBe('Propio');
+  expect(e.crop).toEqual(crop);
+  expect(destinoEfectivo(publicacion, { platform: 'tiktok', format: 'tiktok', overrides: {} })).not.toHaveProperty(
+    'crop',
+  );
+});

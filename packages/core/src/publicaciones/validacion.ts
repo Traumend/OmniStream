@@ -10,7 +10,9 @@ import {
   largoEtiquetasYoutube,
   proporcionCompatible,
   REGLAS,
+  VALOR_PROPORCION,
 } from './reglas';
+import { pixelesDeRecorte, recortePermitido } from './recorte';
 import { contarCaracteres, contenidoFinal, textoReferencia, urlVideoYoutube } from './texto';
 import {
   ETIQUETAS_FORMATO,
@@ -122,7 +124,25 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
             }
           }
         }
-        if (archivo.aspect && !proporcionCompatible(regla, archivo.aspect)) {
+        const crop = destino.overrides.crop;
+        if (crop) {
+          if (!recortePermitido({ ...archivo, sizeBytes: archivo.sizeBytes ?? 0 })) {
+            agregar('error', 'El recorte de video se permite para videos de hasta 15 minutos y 2 GB.', red);
+          }
+          if (!proporcionCompatible(regla, VALOR_PROPORCION[crop.aspect])) {
+            agregar(
+              'advertencia',
+              `${regla.etiqueta}: el recorte ${crop.aspect} no es la proporción recomendada (${regla.proporciones.join(', ')}).`,
+              red,
+            );
+          }
+          if (archivo.width && archivo.height) {
+            const px = pixelesDeRecorte(crop, archivo.width, archivo.height);
+            if (Math.min(px.w, px.h) < RESOLUCION_MINIMA) {
+              agregar('advertencia', `${regla.etiqueta}: el recorte queda por debajo de 720p.`, red);
+            }
+          }
+        } else if (archivo.aspect && !proporcionCompatible(regla, archivo.aspect)) {
           agregar(
             'advertencia',
             `${regla.etiqueta}: la proporción ${describirProporcion(archivo.aspect)} no es la recomendada (${regla.proporciones.join(', ')}).`,
@@ -130,6 +150,11 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
           );
         }
       }
+    }
+
+    const horaPropia = destino.overrides.scheduledAt;
+    if (contexto.hora === 'programada' && horaPropia && horaPropia.getTime() <= contexto.ahora.getTime()) {
+      agregar('error', `${ETIQUETAS_RED[red]}: la hora programada ya pasó.`, red);
     }
 
     const porApi = contexto.modos?.[red] === 'api';
@@ -223,13 +248,17 @@ export function validarPublicacion(contexto: ContextoValidacion): Problema[] {
     }
   }
 
-  if (archivo?.width && archivo.height && Math.min(archivo.width, archivo.height) < RESOLUCION_MINIMA) {
+  // Los destinos con recorte evalúan su propia resolución arriba; la advertencia general cubre a los demás.
+  const sinRecorte = contexto.destinos.length === 0 || contexto.destinos.some((d) => !d.overrides.crop);
+  if (sinRecorte && archivo?.width && archivo.height && Math.min(archivo.width, archivo.height) < RESOLUCION_MINIMA) {
     agregar('advertencia', 'La resolución es menor a 720p.');
   }
 
   if (contexto.hora === 'programada') {
+    // La hora base solo cuenta si algún destino la usa; los que tienen hora propia se validan arriba.
+    const usanHoraBase = contexto.destinos.length === 0 || contexto.destinos.some((d) => !d.overrides.scheduledAt);
     if (!publicacion.scheduledAt) agregar('error', 'Elige la fecha y la hora.');
-    else if (publicacion.scheduledAt.getTime() <= contexto.ahora.getTime())
+    else if (usanHoraBase && publicacion.scheduledAt.getTime() <= contexto.ahora.getTime())
       agregar('error', 'La hora programada ya pasó.');
   }
 

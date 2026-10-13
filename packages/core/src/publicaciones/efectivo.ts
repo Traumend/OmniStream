@@ -1,3 +1,4 @@
+import type { Crop } from './recorte';
 import { contenidoFinal, textoReferencia } from './texto';
 import type { CamposTiktok, CamposYoutube, Destino, FormatoDestino, Platform, Publicacion } from './tipos';
 
@@ -10,6 +11,7 @@ export interface DestinoEfectivo {
   etiquetas: string[];
   youtube?: CamposYoutube;
   tiktok?: CamposTiktok;
+  crop?: Crop;
   duracionSeg?: number;
 }
 
@@ -32,6 +34,7 @@ export function destinoEfectivo(
   };
   if (destino.youtube) efectivo.youtube = destino.youtube;
   if (destino.tiktok) efectivo.tiktok = destino.tiktok;
+  if (destino.overrides.crop) efectivo.crop = destino.overrides.crop;
   if (opciones.duracionSeg !== undefined) efectivo.duracionSeg = opciones.duracionSeg;
   return efectivo;
 }

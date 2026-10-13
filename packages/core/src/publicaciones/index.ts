@@ -14,3 +14,4 @@ export * from './efectivo';
 export * from './promocion';
 export * from './recorte';
 export * from './ajustes';
+export * from './zonasSeguras';

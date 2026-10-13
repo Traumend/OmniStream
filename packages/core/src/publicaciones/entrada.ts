@@ -20,9 +20,7 @@ export const camposYoutubeSchema = z.object({
   categoryId: z.string().min(1),
   privacy: z.enum(['public', 'unlisted', 'private']),
   madeForKids: z.boolean(),
-  thumbnail: z
-    .union([z.object({ frame: z.enum(['start', 'middle', 'end']) }), z.object({ assetId: id })])
-    .optional(),
+  thumbnail: z.union([z.object({ frame: z.enum(['start', 'middle', 'end']) }), z.object({ assetId: id })]).optional(),
 });
 
 // Tolerancia para errores de redondeo de punto flotante en x + w y en y + h.
@@ -33,8 +31,14 @@ export const cropSchema = z
     aspect: z.enum(ASPECTOS_RECORTE),
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
-    w: z.number().min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE).max(1),
-    h: z.number().min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE).max(1),
+    w: z
+      .number()
+      .min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE)
+      .max(1),
+    h: z
+      .number()
+      .min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE)
+      .max(1),
   })
   .refine((c) => c.x + c.w <= 1 + HOLGURA_RECORTE && c.y + c.h <= 1 + HOLGURA_RECORTE, {
     message: 'El recorte sale del cuadro.',

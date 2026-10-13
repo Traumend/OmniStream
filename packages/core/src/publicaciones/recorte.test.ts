@@ -33,12 +33,12 @@ describe('ajustarRecorte', () => {
     const ancho = 1920;
     const alto = 1080;
     const inicial = recorteCentrado('9:16', ancho, alto);
-    const movido = ajustarRecorte(inicial, { dx: 0.5 }, ancho, alto);
+    const movido = ajustarRecorte(inicial, { dx: 0.5 });
     expect(movido.x + movido.w).toBeCloseTo(1, 6);
     expect(movido.x + movido.w).toBeLessThanOrEqual(1);
     expect((movido.w * ancho) / (movido.h * alto)).toBeCloseTo(9 / 16, 2);
 
-    const reducido = ajustarRecorte(inicial, { escala: 0.01 }, ancho, alto);
+    const reducido = ajustarRecorte(inicial, { escala: 0.01 });
     expect(Math.min(reducido.w, reducido.h)).toBeGreaterThanOrEqual(LADO_MINIMO_RECORTE - 1e-9);
     expect(Math.abs((reducido.w * ancho) / (reducido.h * alto) - 9 / 16)).toBeLessThanOrEqual(0.01);
     expect(reducido.x).toBeGreaterThanOrEqual(0);
@@ -46,7 +46,7 @@ describe('ajustarRecorte', () => {
     expect(reducido.x + reducido.w).toBeLessThanOrEqual(1);
     expect(reducido.y + reducido.h).toBeLessThanOrEqual(1);
 
-    const ampliado = ajustarRecorte(reducido, { escala: 100 }, ancho, alto);
+    const ampliado = ajustarRecorte(reducido, { escala: 100 });
     expect(ampliado.h).toBeLessThanOrEqual(1);
     expect(ampliado.w).toBeLessThanOrEqual(1);
     expect(Math.abs((ampliado.w * ancho) / (ampliado.h * alto) - 9 / 16)).toBeLessThanOrEqual(0.01);

@@ -260,3 +260,60 @@ describe('modo API', () => {
     expect(errores([d('instagram', 'reel')], conTexto(veinte))).toEqual([]);
   });
 });
+
+describe('recorte y hora por red', () => {
+  const horizontal = conAsset({ width: 1920, height: 1080, aspect: 16 / 9 });
+  const recorte916 = { aspect: '9:16', x: 0.3418, y: 0, w: 0.3164, h: 1 } as const;
+  const proporcionTiktok = (p: { red?: string; mensaje: string }) => p.red === 'tiktok' && /proporci/.test(p.mensaje);
+
+  it('un 16:9 recortado a 9:16 ya no advierte proporción en TikTok', () => {
+    expect(validar([d('tiktok', 'tiktok')], horizontal).some(proporcionTiktok)).toBe(true);
+    const recortado = validar([d('tiktok', 'tiktok', { overrides: { crop: recorte916 } })], {
+      asset: { ...vertical, width: 3840, height: 2160, aspect: 16 / 9 },
+    });
+    expect(recortado).toEqual([]);
+  });
+  it('un recorte pequeño de un video 720p advierte resolución', () => {
+    const problemas = validar([d('tiktok', 'tiktok', { overrides: { crop: recorte916 } })], {
+      asset: { ...vertical, width: 1280, height: 720, aspect: 16 / 9 },
+    });
+    expect(problemas).toContainEqual({
+      nivel: 'advertencia',
+      red: 'tiktok',
+      mensaje: 'TikTok · Video: el recorte queda por debajo de 720p.',
+    });
+    expect(problemas.some((p) => p.mensaje === 'La resolución es menor a 720p.')).toBe(false);
+  });
+  it('recortar un video de 16 minutos es error', () => {
+    const problemas = validar([d('youtube', 'video_largo', { overrides: { crop: recorte916 } })], {
+      asset: { ...vertical, durationSec: 16 * 60 },
+    });
+    expect(problemas).toContainEqual({
+      nivel: 'error',
+      red: 'youtube',
+      mensaje: 'El recorte de video se permite para videos de hasta 15 minutos y 2 GB.',
+    });
+  });
+  it('un recorte 1:1 en Instagram Reel advierte la proporción recomendada', () => {
+    const crop = { aspect: '1:1', x: 0.2, y: 0, w: 0.5625, h: 1 } as const;
+    const problemas = validar([d('instagram', 'reel', { overrides: { crop } })], {
+      asset: { ...vertical, width: 3840, height: 2160, aspect: 16 / 9 },
+    });
+    expect(problemas).toEqual([
+      {
+        nivel: 'advertencia',
+        red: 'instagram',
+        mensaje: 'Instagram · Reel: el recorte 1:1 no es la proporción recomendada (9:16).',
+      },
+    ]);
+  });
+  it('la hora propia de una red se valida por separado', () => {
+    const ayer = new Date('2026-10-06T12:00:00Z');
+    const problemas = validar([d('tiktok', 'tiktok', { overrides: { scheduledAt: ayer } }), d('facebook', 'reel')]);
+    expect(problemas).toEqual([{ nivel: 'error', red: 'tiktok', mensaje: 'TikTok: la hora programada ya pasó.' }]);
+    const baseVencida = validar([d('tiktok', 'tiktok', { overrides: { scheduledAt: manana } })], {
+      publicacion: { scheduledAt: ayer },
+    });
+    expect(baseVencida).toEqual([]);
+  });
+});
