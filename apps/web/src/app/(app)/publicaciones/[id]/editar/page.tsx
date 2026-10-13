@@ -2,19 +2,25 @@
 
 import { esEditable, modoDePublicacion } from '@omnistream/core';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { MiniaturaArchivo } from '@/components/biblioteca/MiniaturaArchivo';
 import { Cargando } from '@/components/comunes/Cargando';
-import { EditorPublicacion } from '@/components/publicaciones/EditorPublicacion';
+import { PasosCreacion } from '@/components/crear/PasosCreacion';
 import { useEstadoAjustes } from '@/lib/ajustes/useAjustes';
 import { useConexiones } from '@/lib/conexiones/repositorio';
 import { useInfoCreadorTiktok } from '@/lib/conexiones/useInfoCreadorTiktok';
 import { useArchivos } from '@/lib/archivos/repositorio';
+import { useSubidas } from '@/lib/archivos/useSubidas';
+import { pasoDe } from '@/lib/crear/pasos';
+import { ejecutarAccion } from '@/lib/publicaciones/acciones';
 import { useEnviarPublicacion } from '@/lib/publicaciones/enviar';
 import { useHijas, usePrincipales, usePublicacion } from '@/lib/publicaciones/repositorio';
 
-export default function EditarPublicacion() {
+function Editar() {
   const { id } = useParams<{ id: string }>();
+  const parametros = useSearchParams();
+  const { gestor, estado: subidas } = useSubidas();
   const { publicacion, destinos, cargando } = usePublicacion(id);
   const hijas = useHijas(id);
   const { ajustes, cargando: cargandoAjustes } = useEstadoAjustes();
@@ -40,27 +46,43 @@ export default function EditarPublicacion() {
     );
   } else {
     contenido = (
-      <EditorPublicacion
+      <PasosCreacion
         key={id}
         zona={ajustes.timezone}
-        archivos={archivos.filter((a) => a.status === 'listo' || a.id === publicacion.assetId)}
+        archivos={archivos.filter((a) => ESTADOS_ELEGIBLES.has(a.status) || a.id === publicacion.assetId)}
         principales={principales}
         inicial={{ publicacion, destinos, hijas: hijas.length }}
+        pasoInicial={pasoDe(parametros.get('paso'))}
         renderMiniatura={(asset) => <MiniaturaArchivo asset={asset} />}
         conexiones={conexiones}
         infoTiktok={infoTiktok}
+        subidas={subidas}
+        alSubir={(archivo) => gestor.iniciar(archivo, ajustes.maxUploadGb)}
+        alGuardarBorrador={(entrada) => ejecutarAccion({ accion: 'guardar', publicacion: entrada })}
         alEnviar={enviar}
       />
     );
   }
 
   return (
-    <section className="flex flex-col gap-6">
+    <>
       <header>
         <h1 className="text-4xl text-texto">Editar publicación</h1>
         {publicacion && <p className="text-texto-secundario">{publicacion.title}</p>}
       </header>
       {contenido}
+    </>
+  );
+}
+
+const ESTADOS_ELEGIBLES: ReadonlySet<string> = new Set(['listo', 'subiendo', 'procesando']);
+
+export default function EditarPublicacion() {
+  return (
+    <section className="flex flex-col gap-6">
+      <Suspense fallback={<Cargando />}>
+        <Editar />
+      </Suspense>
     </section>
   );
 }

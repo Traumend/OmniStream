@@ -5,6 +5,7 @@ import {
   PLATAFORMAS,
   type CamposTiktok,
   type CamposYoutube,
+  type Crop,
   type Destino,
   type EntradaPublicacion,
   type FormatoDestino,
@@ -13,6 +14,16 @@ import {
   type Publicacion,
 } from '@omnistream/core';
 import { aFechaUtc, aPartesLocales } from '@/lib/fechas';
+
+// Ajustes propios de una red (spec 8.3). Un campo ausente hereda el valor base.
+export interface FormularioOverrides {
+  text?: string;
+  hashtags?: string;
+  title?: string;
+  crop?: Crop;
+  fecha?: string; // la hora propia, en la zona configurada
+  hora?: string;
+}
 
 export interface FormularioPublicacion {
   title: string;
@@ -32,6 +43,7 @@ export interface FormularioPublicacion {
     frame: Fotograma;
   };
   tiktok: CamposTiktok;
+  overrides: Partial<Record<Platform, FormularioOverrides>>;
 }
 
 export const FORMULARIO_VACIO: FormularioPublicacion = {
@@ -52,6 +64,7 @@ export const FORMULARIO_VACIO: FormularioPublicacion = {
     frame: 'start',
   },
   tiktok: CAMPOS_TIKTOK_POR_DEFECTO,
+  overrides: {},
 };
 
 const etiquetasDe = (texto: string) =>
@@ -60,17 +73,42 @@ const etiquetasDe = (texto: string) =>
     .map((t) => t.trim())
     .filter(Boolean);
 
+type OverridesEntrada = NonNullable<EntradaPublicacion['destinos'][number]['overrides']>;
+
+function overridesDeEntrada(o: FormularioOverrides | undefined, zona: string): OverridesEntrada | undefined {
+  if (!o) return undefined;
+  const overrides: OverridesEntrada = {};
+  if (o.text !== undefined) overrides.text = o.text;
+  if (o.hashtags !== undefined) overrides.hashtags = normalizarHashtags(o.hashtags);
+  if (o.title !== undefined) overrides.title = o.title;
+  if (o.crop) overrides.crop = o.crop;
+  if (o.fecha && o.hora) overrides.scheduledAt = aFechaUtc(o.fecha, o.hora, zona).toISOString();
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
+}
+
+function overridesDeFormulario(o: Destino['overrides'] | undefined, zona: string): FormularioOverrides | undefined {
+  if (!o) return undefined;
+  const formulario: FormularioOverrides = {};
+  if (o.text !== undefined) formulario.text = o.text;
+  if (o.hashtags !== undefined) formulario.hashtags = o.hashtags.map((h) => `#${h}`).join(' ');
+  if (o.title !== undefined) formulario.title = o.title;
+  if (o.crop) formulario.crop = o.crop;
+  if (o.scheduledAt) Object.assign(formulario, aPartesLocales(o.scheduledAt, zona));
+  return Object.keys(formulario).length > 0 ? formulario : undefined;
+}
+
 export function aEntrada(form: FormularioPublicacion, zona: string, postId?: string): EntradaPublicacion {
   const destinos = PLATAFORMAS.flatMap((platform): EntradaPublicacion['destinos'] => {
     const format = form.redes[platform];
     if (!format) return [];
-    if (platform === 'tiktok') return [{ platform, format, tiktok: form.tiktok }];
-    if (platform !== 'youtube') return [{ platform, format }];
+    const overrides = overridesDeEntrada(form.overrides[platform], zona);
+    const comunes = { platform, format, ...(overrides ? { overrides } : {}) };
+    if (platform === 'tiktok') return [{ ...comunes, tiktok: form.tiktok }];
+    if (platform !== 'youtube') return [comunes];
     const { description, tags, categoryId, privacy, madeForKids, frame } = form.youtube;
     return [
       {
-        platform,
-        format,
+        ...comunes,
         youtube: { description, tags: etiquetasDe(tags), categoryId, privacy, madeForKids, thumbnail: { frame } },
       },
     ];
@@ -113,5 +151,11 @@ export function aFormulario(
       frame: youtube.thumbnail && 'frame' in youtube.thumbnail ? youtube.thumbnail.frame : 'start',
     },
     tiktok,
+    overrides: Object.fromEntries(
+      destinos.flatMap((d) => {
+        const overrides = overridesDeFormulario(d.overrides, zona);
+        return overrides ? [[d.platform, overrides]] : [];
+      }),
+    ),
   };
 }
