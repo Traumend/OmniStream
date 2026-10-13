@@ -118,3 +118,23 @@ it('leerPublicacion convierte la promociÃ³n, el origen y la espera de publicaciÃ
     },
   ]);
 });
+it('leerDestino lee overrides.crop y derivative', () => {
+  const crop = { aspect: '9:16', x: 0.34, y: 0, w: 0.3164, h: 1 };
+  const d = leerDestino({
+    platform: 'tiktok',
+    format: 'tiktok',
+    overrides: { crop, scheduledAt: ts('2026-11-01T10:00:00Z') },
+    derivative: { cropHash: 'abc', storagePath: 'derivados/p/tiktok/abc.mp4', status: 'listo' },
+  });
+  expect(d.overrides).toEqual({ crop, scheduledAt: new Date('2026-11-01T10:00:00Z') });
+  expect(d.derivative).toEqual({ cropHash: 'abc', storagePath: 'derivados/p/tiktok/abc.mp4', status: 'listo' });
+  const sinDerivado = leerDestino({ platform: 'tiktok', format: 'tiktok', overrides: { crop: { aspect: 'x' } } });
+  expect(sinDerivado.overrides.crop).toBeUndefined();
+  expect(sinDerivado.derivative).toBeUndefined();
+});
+it('thumbnail con assetId', () => {
+  const d = leerDestino({ platform: 'youtube', format: 'video_largo', youtube: { thumbnail: { assetId: 'img1' } } });
+  expect(d.youtube?.thumbnail).toEqual({ assetId: 'img1' });
+  const f = leerDestino({ platform: 'youtube', format: 'video_largo', youtube: { thumbnail: { frame: 'end' } } });
+  expect(f.youtube?.thumbnail).toEqual({ frame: 'end' });
+});

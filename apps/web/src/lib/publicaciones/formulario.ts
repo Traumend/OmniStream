@@ -110,7 +110,7 @@ export function aFormulario(
       categoryId: youtube.categoryId,
       privacy: youtube.privacy,
       madeForKids: youtube.madeForKids,
-      frame: youtube.thumbnail?.frame ?? 'start',
+      frame: youtube.thumbnail && 'frame' in youtube.thumbnail ? youtube.thumbnail.frame : 'start',
     },
     tiktok,
   };

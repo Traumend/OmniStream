@@ -12,3 +12,5 @@ export * from './cola';
 export * from './avisos';
 export * from './efectivo';
 export * from './promocion';
+export * from './recorte';
+export * from './ajustes';

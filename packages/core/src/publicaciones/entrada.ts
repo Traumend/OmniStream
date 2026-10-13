@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { itemPromocionSchema } from './promocion';
+import { ASPECTOS_RECORTE, LADO_MINIMO_RECORTE } from './recorte';
 import {
   ETIQUETAS_FORMATO,
   ETIQUETAS_RED,
@@ -19,7 +20,32 @@ export const camposYoutubeSchema = z.object({
   categoryId: z.string().min(1),
   privacy: z.enum(['public', 'unlisted', 'private']),
   madeForKids: z.boolean(),
-  thumbnail: z.object({ frame: z.enum(['start', 'middle', 'end']) }).optional(),
+  thumbnail: z
+    .union([z.object({ frame: z.enum(['start', 'middle', 'end']) }), z.object({ assetId: id })])
+    .optional(),
+});
+
+// Tolerancia para errores de redondeo de punto flotante en x + w y en y + h.
+const HOLGURA_RECORTE = 1e-6;
+
+export const cropSchema = z
+  .object({
+    aspect: z.enum(ASPECTOS_RECORTE),
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE).max(1),
+    h: z.number().min(LADO_MINIMO_RECORTE - HOLGURA_RECORTE).max(1),
+  })
+  .refine((c) => c.x + c.w <= 1 + HOLGURA_RECORTE && c.y + c.h <= 1 + HOLGURA_RECORTE, {
+    message: 'El recorte sale del cuadro.',
+  });
+
+const overridesSchema = z.object({
+  text: z.string().max(20000, 'El texto no puede pasar de 20000 caracteres.').optional(),
+  hashtags: z.array(z.string()).max(100, 'No puede haber más de 100 hashtags.').optional(),
+  title: z.string().max(200, 'El título no puede pasar de 200 caracteres.').optional(),
+  crop: cropSchema.optional(),
+  scheduledAt: z.iso.datetime().optional(),
 });
 
 export const camposTiktokSchema = z.object({
@@ -33,6 +59,7 @@ export const camposTiktokSchema = z.object({
 const destinoEntradaSchema = z.object({
   platform: plataforma,
   format: formato,
+  overrides: overridesSchema.optional(),
   youtube: camposYoutubeSchema.optional(),
   tiktok: camposTiktokSchema.optional(),
 });

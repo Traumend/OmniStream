@@ -98,3 +98,37 @@ it('acepta importarYoutube y actualizarPromocion, y rechaza un tipo desconocido'
     }).success,
   ).toBe(false);
 });
+it('acepta overrides con recorte', () => {
+  const destinos = [
+    {
+      platform: 'tiktok',
+      format: 'tiktok',
+      overrides: {
+        text: 'Propio',
+        hashtags: [],
+        title: 'T',
+        crop: { aspect: '9:16', x: 0.34, y: 0, w: 0.3164, h: 1 },
+        scheduledAt: '2026-11-01T10:00:00.000Z',
+      },
+    },
+  ];
+  expect(entradaPublicacionSchema.safeParse({ ...minima, destinos }).success).toBe(true);
+});
+it('rechaza un recorte fuera del cuadro', () => {
+  const destinos = [
+    { platform: 'tiktok', format: 'tiktok', overrides: { crop: { aspect: '9:16', x: 0.8, y: 0, w: 0.3, h: 1 } } },
+  ];
+  expect(entradaPublicacionSchema.safeParse({ ...minima, destinos }).success).toBe(false);
+});
+it('acepta la miniatura propia de YouTube como imagen de la Biblioteca', () => {
+  const youtube = {
+    description: '',
+    tags: [],
+    categoryId: '22',
+    privacy: 'public',
+    madeForKids: false,
+    thumbnail: { assetId: 'img1' },
+  };
+  const destinos = [{ platform: 'youtube', format: 'video_largo', youtube }];
+  expect(entradaPublicacionSchema.safeParse({ ...minima, destinos }).success).toBe(true);
+});

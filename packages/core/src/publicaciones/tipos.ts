@@ -1,5 +1,6 @@
 import type { ItemPromocion } from './promocion';
 import type { Fotograma } from '../archivos/fotogramas';
+import type { Crop } from './recorte';
 
 export const PLATAFORMAS = ['facebook', 'instagram', 'youtube', 'tiktok'] as const;
 export type Platform = (typeof PLATAFORMAS)[number];
@@ -50,7 +51,7 @@ export interface CamposYoutube {
   categoryId: string;
   privacy: 'public' | 'unlisted' | 'private';
   madeForKids: boolean;
-  thumbnail?: { frame: Fotograma };
+  thumbnail?: { frame: Fotograma } | { assetId: string }; // assetId: imagen propia de la Biblioteca (spec 8.4)
 }
 
 export const CAMPOS_YOUTUBE_POR_DEFECTO: CamposYoutube = {
@@ -136,7 +137,8 @@ export interface Publicacion {
 export interface Destino {
   platform: Platform;
   format: FormatoDestino;
-  overrides: { text?: string; hashtags?: string[]; title?: string; scheduledAt?: Date };
+  overrides: { text?: string; hashtags?: string[]; title?: string; crop?: Crop; scheduledAt?: Date };
+  derivative?: Derivado;
   youtube?: CamposYoutube;
   tiktok?: CamposTiktok;
   scheduledAt?: Date;
@@ -151,6 +153,14 @@ export interface Destino {
   parentRef: { status: EstadoReferencia; remoteCommentId?: string; error?: string };
   attempts: number;
   lastError?: { code: string; message: string; kind: TipoError; at: Date };
+}
+
+// Archivo recortado de una red (spec 6.4). cropHash identifica el recorte que lo produce.
+export interface Derivado {
+  cropHash: string;
+  storagePath?: string;
+  status: 'pendiente' | 'generando' | 'listo' | 'fallido';
+  error?: string;
 }
 
 export interface Intento {

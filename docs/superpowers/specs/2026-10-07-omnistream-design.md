@@ -148,7 +148,7 @@ Cloud Functions (2.ª gen) + Cloud Tasks + Cloud Scheduler + Secret Manager + Cl
 | `antesDeCrearUsuario` | Bloqueo de Auth | Rechaza cualquier correo distinto al permitido o sin verificar y asigna el claim `owner`. | 1 |
 | `antesDeIniciarSesion` | Bloqueo de Auth | Repite la verificación en cada inicio de sesión. | 1 |
 | `procesarArchivo` | Fin de subida a Storage | Lee los datos técnicos con ffprobe por URL firmada, sin descargar el archivo completo. Extrae 3 fotogramas (segundo 1, mitad, un segundo antes del final). Convierte heic a jpg. | 1 |
-| `generarRecorte` | Cola | Genera el archivo derivado (ffmpeg para video, sharp para imagen) a la resolución recomendada de la red. Memoria 4 GiB, tiempo máximo 30 min. | 3 |
+| `generarRecorte` | Cola | Genera el archivo derivado (ffmpeg para video, sharp para imagen) a la resolución recomendada de la red. Memoria 4 GiB, tiempo máximo 30 min. Se encola con 60 s de retraso e id `{postId}-{red}-{cropHash}`; una tarea cuya huella ya no es la vigente termina sin hacer nada. `publicarDestino` no genera recortes: si el derivado no está listo, lo espera reencolándose cada 120 s, hasta 15 veces, y después el destino falla con "No se pudo generar el recorte para {Red}.". | 3 |
 | `publicaciones` | Invocable | Acciones del usuario sobre publicaciones: guardar, eliminar, desvincular, programar o publicar ahora, mover, cancelar, reintentar, marcar publicada y marcar la referencia como publicada. | 2A |
 | `publicarDestino` | Cola con hora programada | Publica un destino en una red, por etapas. Para esperas (por ejemplo, el procesamiento de Instagram) se vuelve a encolar con retraso. Memoria de 1 GiB; tiempo máximo 30 min (límite de las funciones de cola); una subida más larga continúa desde su `checkpoint` en otra ejecución. En 2A solo resuelve el modo manual; 2B agrega la publicación por API. | 2A / 2B |
 | `comentarReferencia` | Cola | Publica la referencia al Padre por API. | 2B |
@@ -558,7 +558,7 @@ Cada intento queda en `attempts`. Los fallos envían una notificación push. Si 
 
 ## 8. Smart Canvas y flujo de creación
 
-La página **Crear** tiene seis pasos: Archivo → Destinos → Canvas → Contenido → Vista previa → Publicar. Después del primero se navega libremente. El borrador se guarda solo (escrituras con retardo de 1 segundo).
+La página **Crear** tiene seis pasos: Archivo → Destinos → Canvas → Contenido → Vista previa → Publicar. Después del primero se navega libremente. El borrador se guarda solo (escrituras con retardo de 1 segundo, nunca dos a la vez). El autoguardado aplica solo a borradores con título y jerarquía válida; una publicación programada se guarda con "Guardar cambios", que la vuelve a programar.
 
 ### 8.1 Archivo
 
@@ -577,13 +577,13 @@ La página **Crear** tiene seis pasos: Archivo → Destinos → Canvas → Conte
 - **Distribución:** redes a la izquierda (con indicador correcto / advertencia / error), imagen en el marco de la red al centro, controles a la derecha y tira de 3 fotogramas abajo.
 - **Advertencias:** salen de las reglas de `core`. *Error* bloquea (duración o peso excedidos). *Advertencia* permite continuar (resolución menor a 720p, proporción incompatible, video de más de 3 minutos que no se clasificará como Short).
 - **Zonas seguras:** interruptor que superpone capas semitransparentes por red y formato. Cada zona es una lista de rectángulos en porcentajes en `core/rules/safe-zones`.
-- **Recorte:** proporciones 16:9, 9:16, 1:1, 4:5 y 1.91:1, con las adecuadas destacadas. El recuadro se arrastra y se amplía, y se muestra a la vez sobre los 3 fotogramas. Ante incompatibilidad, "Aplicar guía [proporción]" coloca un recorte centrado. El recorte es fijo para todo el video y se guarda como `Crop`. Al guardar un recorte, `generarRecorte` produce el derivado en segundo plano; si no está listo al publicar, `publicarDestino` lo genera en ese momento. El recorte de video se permite para videos de hasta 15 minutos y 2 GB.
+- **Recorte:** proporciones 16:9, 9:16, 1:1, 4:5 y 1.91:1, con las adecuadas destacadas. El recuadro se arrastra y se amplía, y se muestra a la vez sobre los 3 fotogramas. Ante incompatibilidad, "Aplicar guía [proporción]" coloca un recorte centrado. El recorte es fijo para todo el video y se guarda como `Crop`. Al guardar un recorte, `generarRecorte` produce el derivado en segundo plano; si no está listo al publicar, `publicarDestino` espera a que lo esté (sección 5.4). El recorte de video se permite para videos de hasta 15 minutos y 2 GB. Ningún lado del recorte baja del 10 % del lado correspondiente del original.
 - **Ajustes por red:** cada campo (texto, hashtags, título, recorte, hora) hereda el valor base. "Desvincular" copia el valor base a `overrides` para editarlo; "Revincular" elimina el override. Los destinos con overrides muestran "Personalizado". La combinación es una función pura en `core`: `efectivo = override ?? base`.
 
 ### 8.4 Contenido
 
 - Texto base con contadores por red según sus límites; hashtags como etiquetas.
-- Campos propios de YouTube y TikTok (sección 6.4 y 7.4.1). Miniatura del Principal: uno de los 3 fotogramas o una imagen propia.
+- Campos propios de YouTube y TikTok (sección 6.4 y 7.4.1). Miniatura del Principal: uno de los 3 fotogramas o una imagen propia elegida entre las imágenes listas de la Biblioteca (`thumbnail = { assetId }`).
 - "Generar con IA" (sección 9.3).
 
 ### 8.5 Vista previa final

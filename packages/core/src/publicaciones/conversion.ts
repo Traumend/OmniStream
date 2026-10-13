@@ -1,8 +1,10 @@
 import { TIPOS_PROMOCION, type ItemPromocion, type TipoPromocion } from './promocion';
+import { ASPECTOS_RECORTE, type Crop } from './recorte';
 import {
   PRIVACIDADES_TIKTOK,
   type CamposTiktok,
   type CamposYoutube,
+  type Derivado,
   type Destino,
   type EstadoDestino,
   type EstadoPublicacion,
@@ -95,7 +97,33 @@ function leerYoutube(valor: unknown): CamposYoutube | undefined {
     categoryId: texto(y.categoryId) ?? '22',
     privacy: (texto(y.privacy) as CamposYoutube['privacy'] | undefined) ?? 'public',
     madeForKids: y.madeForKids === true,
-    thumbnail: texto(miniatura.frame) ? { frame: miniatura.frame as 'start' | 'middle' | 'end' } : undefined,
+    thumbnail: texto(miniatura.frame)
+      ? { frame: miniatura.frame as 'start' | 'middle' | 'end' }
+      : texto(miniatura.assetId)
+        ? { assetId: miniatura.assetId as string }
+        : undefined,
+  });
+}
+
+function leerCrop(valor: unknown): Crop | undefined {
+  const c = registro(valor);
+  const aspecto = ASPECTOS_RECORTE.find((a) => a === c.aspect);
+  const [x, y, w, h] = [numero(c.x), numero(c.y), numero(c.w), numero(c.h)];
+  if (!aspecto || x === undefined || y === undefined || w === undefined || h === undefined) return undefined;
+  return { aspect: aspecto, x, y, w, h };
+}
+
+const ESTADOS_DERIVADO: readonly Derivado['status'][] = ['pendiente', 'generando', 'listo', 'fallido'];
+
+function leerDerivado(valor: unknown): Derivado | undefined {
+  const d = registro(valor);
+  const estado = ESTADOS_DERIVADO.find((e) => e === d.status);
+  if (!texto(d.cropHash) || !estado) return undefined;
+  return definidos({
+    cropHash: d.cropHash as string,
+    storagePath: texto(d.storagePath),
+    status: estado,
+    error: texto(d.error),
   });
 }
 
@@ -136,8 +164,10 @@ export function leerDestino(datos: unknown): Destino {
       text: texto(overrides.text),
       hashtags: textos(overrides.hashtags),
       title: texto(overrides.title),
+      crop: leerCrop(overrides.crop),
       scheduledAt: aFecha(overrides.scheduledAt),
     }),
+    derivative: leerDerivado(d.derivative),
     youtube: leerYoutube(d.youtube),
     tiktok: leerTiktok(d.tiktok),
     scheduledAt: aFecha(d.scheduledAt),

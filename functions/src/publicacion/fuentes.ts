@@ -39,7 +39,8 @@ export async function fuentesDePublicacion(
   const fuentes: FuentesPublicacion = {
     archivo: fuenteDeStorage(bucket.file(asset.storagePath), { size: asset.sizeBytes, mimeType: asset.mimeType }),
   };
-  const fotograma = destino.youtube?.thumbnail?.frame;
+  const miniatura = destino.youtube?.thumbnail;
+  const fotograma = miniatura && 'frame' in miniatura ? miniatura.frame : undefined;
   if (fotograma) {
     const archivo = bucket.file(rutaFotograma(asset.id, fotograma));
     const [existe] = await archivo.exists();

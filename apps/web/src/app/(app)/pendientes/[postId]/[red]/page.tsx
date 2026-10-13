@@ -53,6 +53,7 @@ export default function Paquete() {
       </p>
     );
   }
+  const miniatura = destino.youtube?.thumbnail;
   return (
     <PaquetePendiente
       publicacion={publicacion}
@@ -61,7 +62,7 @@ export default function Paquete() {
       urlPrincipal={remotoPrincipal ? urlVideoYoutube(remotoPrincipal.id) : undefined}
       urlDescarga={archivo === 'lista' ? descarga.url : undefined}
       preparandoDescarga={archivo === 'preparando'}
-      urlMiniatura={miniaturas[destino.youtube?.thumbnail?.frame ?? 'start']}
+      urlMiniatura={miniaturas[miniatura && 'frame' in miniatura ? miniatura.frame : 'start']}
       zona={ajustes.timezone}
       alMarcarPublicada={alMarcarPublicada}
     />
