@@ -3,6 +3,7 @@
 import {
   CATEGORIAS_YOUTUBE,
   ETIQUETAS_RED,
+  type Asset,
   type CamposTiktok,
   type FormatoDestino,
   type Fotograma,
@@ -29,6 +30,7 @@ const PRIVACIDADES = [
 
 export interface PropsPasoContenido {
   form: FormularioPublicacion;
+  imagenes: Asset[]; // imágenes listas de la Biblioteca, para la miniatura propia
   contadores: { red: Platform; largo: number; limite: number }[];
   tiktokPorApi?: { formato: FormatoDestino; info: EstadoInfoTiktok; duracionSeg?: number };
   alCambiar(cambios: Partial<Pick<FormularioPublicacion, 'title' | 'text' | 'hashtags'>>): void;
@@ -39,12 +41,14 @@ export interface PropsPasoContenido {
 // Spec 8.4: título, texto base con contadores por red, hashtags y los campos propios de YouTube y TikTok.
 export function PasoContenido({
   form,
+  imagenes,
   contadores,
   tiktokPorApi,
   alCambiar,
   alCambiarYoutube,
   alCambiarTiktok,
 }: PropsPasoContenido) {
+  const miniatura = form.youtube.miniatura;
   return (
     <>
       <Seccion titulo="Contenido">
@@ -110,7 +114,7 @@ export function PasoContenido({
               className={CAMPO}
             />
           </Campo>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Campo id="yt-categoria" etiqueta="Categoría">
               <select
                 id="yt-categoria"
@@ -141,21 +145,69 @@ export function PasoContenido({
                 ))}
               </select>
             </Campo>
-            <Campo id="yt-miniatura" etiqueta="Miniatura">
-              <select
-                id="yt-miniatura"
-                value={form.youtube.frame}
-                onChange={(e) => alCambiarYoutube({ frame: e.target.value as Fotograma })}
-                className={SELECTOR}
-              >
-                {MINIATURAS.map((m) => (
-                  <option key={m.valor} value={m.valor}>
-                    {m.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </Campo>
           </div>
+          <fieldset className="flex flex-col gap-3">
+            <legend className="font-heading text-lg">Miniatura del video</legend>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-texto">
+                <input
+                  type="radio"
+                  name="tipo-miniatura"
+                  checked={miniatura.tipo === 'fotograma'}
+                  onChange={() => alCambiarYoutube({ miniatura: { tipo: 'fotograma', frame: 'start' } })}
+                  className="size-4 accent-[var(--oro)]"
+                />
+                Fotograma
+              </label>
+              <label className="flex items-center gap-2 text-texto">
+                <input
+                  type="radio"
+                  name="tipo-miniatura"
+                  checked={miniatura.tipo === 'imagen'}
+                  onChange={() => alCambiarYoutube({ miniatura: { tipo: 'imagen', assetId: imagenes[0]?.id ?? '' } })}
+                  className="size-4 accent-[var(--oro)]"
+                />
+                Imagen propia
+              </label>
+            </div>
+            {miniatura.tipo === 'fotograma' ? (
+              <Campo id="yt-miniatura" etiqueta="Miniatura">
+                <select
+                  id="yt-miniatura"
+                  value={miniatura.frame}
+                  onChange={(e) =>
+                    alCambiarYoutube({ miniatura: { tipo: 'fotograma', frame: e.target.value as Fotograma } })
+                  }
+                  className={SELECTOR}
+                >
+                  {MINIATURAS.map((m) => (
+                    <option key={m.valor} value={m.valor}>
+                      {m.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            ) : imagenes.length === 0 ? (
+              <p className="text-sm text-texto-secundario">
+                No hay imágenes listas en la Biblioteca. Sube una para usarla como miniatura.
+              </p>
+            ) : (
+              <Campo id="yt-imagen" etiqueta="Imagen de la Biblioteca">
+                <select
+                  id="yt-imagen"
+                  value={miniatura.assetId}
+                  onChange={(e) => alCambiarYoutube({ miniatura: { tipo: 'imagen', assetId: e.target.value } })}
+                  className={SELECTOR}
+                >
+                  {imagenes.map((imagen) => (
+                    <option key={imagen.id} value={imagen.id}>
+                      {imagen.originalName}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            )}
+          </fieldset>
           <label className="flex items-center gap-2 text-texto">
             <input
               type="checkbox"

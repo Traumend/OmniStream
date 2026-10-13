@@ -40,7 +40,8 @@ export interface FormularioPublicacion {
     categoryId: string;
     privacy: CamposYoutube['privacy'];
     madeForKids: boolean;
-    frame: Fotograma;
+    // Spec 8.4: uno de los 3 fotogramas o una imagen lista de la Biblioteca.
+    miniatura: { tipo: 'fotograma'; frame: Fotograma } | { tipo: 'imagen'; assetId: string };
   };
   tiktok: CamposTiktok;
   overrides: Partial<Record<Platform, FormularioOverrides>>;
@@ -61,7 +62,7 @@ export const FORMULARIO_VACIO: FormularioPublicacion = {
     categoryId: CAMPOS_YOUTUBE_POR_DEFECTO.categoryId,
     privacy: CAMPOS_YOUTUBE_POR_DEFECTO.privacy,
     madeForKids: CAMPOS_YOUTUBE_POR_DEFECTO.madeForKids,
-    frame: 'start',
+    miniatura: { tipo: 'fotograma', frame: 'start' },
   },
   tiktok: CAMPOS_TIKTOK_POR_DEFECTO,
   overrides: {},
@@ -112,11 +113,16 @@ export function aEntrada(form: FormularioPublicacion, zona: string, postId?: str
     const comunes = { platform, format, ...(overrides ? { overrides } : {}) };
     if (platform === 'tiktok') return [{ ...comunes, tiktok: form.tiktok }];
     if (platform !== 'youtube') return [comunes];
-    const { description, tags, categoryId, privacy, madeForKids, frame } = form.youtube;
+    const { description, tags, categoryId, privacy, madeForKids, miniatura } = form.youtube;
+    // Sin imagen elegida, la miniatura propia vuelve al primer fotograma.
+    const thumbnail =
+      miniatura.tipo === 'imagen' && miniatura.assetId
+        ? { assetId: miniatura.assetId }
+        : { frame: miniatura.tipo === 'fotograma' ? miniatura.frame : ('start' as const) };
     return [
       {
         ...comunes,
-        youtube: { description, tags: etiquetasDe(tags), categoryId, privacy, madeForKids, thumbnail: { frame } },
+        youtube: { description, tags: etiquetasDe(tags), categoryId, privacy, madeForKids, thumbnail },
       },
     ];
   });
@@ -155,7 +161,10 @@ export function aFormulario(
       categoryId: youtube.categoryId,
       privacy: youtube.privacy,
       madeForKids: youtube.madeForKids,
-      frame: youtube.thumbnail && 'frame' in youtube.thumbnail ? youtube.thumbnail.frame : 'start',
+      miniatura:
+        youtube.thumbnail && 'assetId' in youtube.thumbnail
+          ? { tipo: 'imagen', assetId: youtube.thumbnail.assetId }
+          : { tipo: 'fotograma', frame: youtube.thumbnail?.frame ?? 'start' },
     },
     tiktok,
     overrides: Object.fromEntries(

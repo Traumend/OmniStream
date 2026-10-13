@@ -289,7 +289,9 @@ export function PasosCreacion({
       destino.platform === 'tiktok' && entrada.parentId
         ? textoReferencia(principal?.title ?? '', URL_DE_MUESTRA)
         : undefined;
-    const largo = contarCaracteres(contenidoFinal(entrada, { ...destino, overrides: {} }, referencia).texto);
+    // Cada red cuenta su texto efectivo: el propio si lo desvinculó, el base si no.
+    const overrides = overridesDeDestino(destino.overrides);
+    const largo = contarCaracteres(contenidoFinal(entrada, { ...destino, overrides }, referencia).texto);
     return [{ red: destino.platform, largo, limite }];
   });
 
@@ -421,6 +423,7 @@ export function PasosCreacion({
       {paso === 'contenido' && (
         <PasoContenido
           form={form}
+          imagenes={archivos.filter((a) => a.kind === 'image' && a.status === 'listo')}
           contadores={contadores}
           tiktokPorApi={
             formatoTiktok && modos.tiktok === 'api'

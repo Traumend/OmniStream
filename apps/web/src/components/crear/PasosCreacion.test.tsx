@@ -365,3 +365,51 @@ it('el recorte del canvas se guarda en los ajustes de su red y cambia su indicad
     ),
   );
 });
+
+it('los contadores usan el texto propio de cada red', async () => {
+  const { user } = montar({
+    inicial: {
+      publicacion: {
+        ...principal,
+        kind: 'independiente',
+        id: 'p3',
+        status: 'borrador',
+        assetId: 'a1',
+        base: { text: 'Hola mundo', hashtags: [] },
+      },
+      destinos: [
+        { ...destinoTiktok('borrador'), overrides: { text: 'abc' } },
+        { ...destinoTiktok('borrador'), platform: 'instagram', format: 'reel' },
+      ],
+      hijas: 0,
+    },
+  });
+  await irA(user, 'Contenido');
+  expect(screen.getByText('TikTok: 3 / 2200')).toBeInTheDocument();
+  expect(screen.getByText('Instagram: 10 / 2200')).toBeInTheDocument();
+});
+
+it('la miniatura propia elige una imagen de la Biblioteca y va como thumbnail.assetId', async () => {
+  const imagen: Asset = {
+    ...base,
+    id: 'img1',
+    kind: 'image',
+    originalName: 'portada.jpg',
+    mimeType: 'image/jpeg',
+    durationSec: undefined,
+  };
+  const { user, alEnviar } = montar({ archivos: [base, imagen] });
+  await elegirArchivo(user, 'vertical.mp4');
+  await escribirTitulo(user, 'Hola');
+  await user.click(screen.getByRole('radio', { name: 'Imagen propia' }));
+  await user.selectOptions(screen.getByLabelText('Imagen de la Biblioteca'), 'img1');
+  await irA(user, 'Publicar');
+  await user.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+  await waitFor(() => expect(alEnviar).toHaveBeenCalled());
+  expect(alEnviar.mock.calls[0]?.[0].destinos).toContainEqual(
+    expect.objectContaining({
+      platform: 'youtube',
+      youtube: expect.objectContaining({ thumbnail: { assetId: 'img1' } }),
+    }),
+  );
+});
