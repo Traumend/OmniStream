@@ -12,6 +12,7 @@ import {
   type Problema,
 } from '@omnistream/core';
 import { useState, type ReactNode } from 'react';
+import { estiloRecorte } from '@/lib/crear/recorteVisual';
 import { cn } from '@/lib/utils';
 import { CapaZonasSeguras } from './canvas/CapaZonasSeguras';
 import { ListaRedes } from './canvas/ListaRedes';
@@ -67,7 +68,12 @@ export function PasoCanvas({ asset, destinos, problemas, urls, controles }: Prop
           >
             {imagen ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={imagen} alt="Fotograma en el marco" className="absolute inset-0 size-full object-cover" />
+              <img
+                src={imagen}
+                alt="Fotograma en el marco"
+                className={cn('absolute max-w-none', !activo.crop && 'inset-0 size-full object-contain')}
+                style={activo.crop ? estiloRecorte(activo.crop) : undefined}
+              />
             ) : (
               <p className="absolute inset-0 grid place-items-center p-4 text-center text-sm text-white/80">
                 Los fotogramas aparecen cuando el archivo termina de procesarse.

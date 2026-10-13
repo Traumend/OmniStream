@@ -4,6 +4,9 @@ import {
   contarCaracteres,
   contenidoFinal,
   esPersonalizado,
+  hashRecorte,
+  proporcionCompatible,
+  recortePermitido,
   FORMATOS_POR_RED,
   modoDePublicacion,
   PLATAFORMAS,
@@ -14,6 +17,7 @@ import {
   urlVideoYoutube,
   type Asset,
   type Conexion,
+  type Crop,
   type Destino,
   type EntradaPublicacion,
   type FormatoDestino,
@@ -33,11 +37,13 @@ import {
   aFormulario,
   FORMULARIO_VACIO,
   overridesDeDestino,
+  type FormularioOverrides,
   type FormularioPublicacion,
 } from '@/lib/publicaciones/formulario';
 import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
 import { Seccion } from './comunes';
+import { MarcoRecorte } from './canvas/MarcoRecorte';
 import { PasoArchivo } from './PasoArchivo';
 import { PasoCanvas } from './PasoCanvas';
 import { PasoContenido } from './PasoContenido';
@@ -215,6 +221,42 @@ export function PasosCreacion({
     actualizar({ redes });
   };
 
+  // Los ajustes por red van a overrides[red]; un ajuste sin valor vuelve a heredar la base.
+  const cambiarOverrides = (red: Platform, cambios: Partial<FormularioOverrides>) => {
+    const fusion: FormularioOverrides = { ...form.overrides[red], ...cambios };
+    const limpios = Object.fromEntries(Object.entries(fusion).filter(([, v]) => v !== undefined));
+    const overrides = { ...form.overrides };
+    if (Object.keys(limpios).length > 0) overrides[red] = limpios;
+    else delete overrides[red];
+    actualizar({ overrides });
+  };
+
+  // Estado del derivado guardado, solo si corresponde al recorte que se ve ahora.
+  const estadoDerivado = (red: Platform, crop: Crop | undefined) => {
+    const derivado = inicial?.destinos.find((d) => d.platform === red)?.derivative;
+    return crop && derivado && derivado.cropHash === hashRecorte(form.assetId, crop) ? derivado.status : undefined;
+  };
+
+  function controlesDeRed(red: Platform, imagen: string | undefined) {
+    const formato = form.redes[red];
+    const regla = formato ? REGLAS[red][formato] : undefined;
+    if (!asset?.width || !asset.height || !regla) return null;
+    const crop = form.overrides[red]?.crop;
+    return (
+      <MarcoRecorte
+        imagen={imagen}
+        ancho={asset.width}
+        alto={asset.height}
+        crop={crop}
+        regla={regla}
+        compatible={asset.aspect ? proporcionCompatible(regla, asset.aspect) : true}
+        permitido={recortePermitido(asset)}
+        estadoDerivado={estadoDerivado(red, crop)}
+        alCambiar={(nuevo) => cambiarOverrides(red, { crop: nuevo })}
+      />
+    );
+  }
+
   const irA = (siguiente: Paso) => {
     setPaso(siguiente);
     window.history.replaceState(null, '', urlConPaso(siguiente));
@@ -353,6 +395,7 @@ export function PasosCreacion({
           }))}
           problemas={validar('guardar').problemas}
           urls={urlsFotogramas}
+          controles={controlesDeRed}
         />
       )}
       {paso === 'contenido' && (

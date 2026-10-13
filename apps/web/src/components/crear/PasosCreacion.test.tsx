@@ -332,3 +332,36 @@ it('cada red muestra su modo', async () => {
   expect(within(screen.getByRole('group', { name: 'Red TikTok' })).getByText('Por API')).toBeInTheDocument();
   expect(within(screen.getByRole('group', { name: 'Red Facebook' })).getByText('Manual')).toBeInTheDocument();
 });
+
+it('el recorte del canvas se guarda en los ajustes de su red y cambia su indicador', async () => {
+  const horizontal: Asset = {
+    ...base,
+    id: 'a3',
+    originalName: 'horizontal.mp4',
+    width: 3840,
+    height: 2160,
+    aspect: 16 / 9,
+  };
+  const { user, alGuardarBorrador } = montar({ archivos: [horizontal] });
+  await elegirArchivo(user, 'horizontal.mp4');
+  await escribirTitulo(user, 'Hola');
+  await irA(user, 'Destinos');
+  for (const red of ['Facebook', 'Instagram', 'YouTube']) {
+    const casilla = screen.getByRole('checkbox', { name: red });
+    if ((casilla as HTMLInputElement).checked) await user.click(casilla);
+  }
+  if (!(screen.getByRole('checkbox', { name: 'TikTok' }) as HTMLInputElement).checked) {
+    await user.click(screen.getByRole('checkbox', { name: 'TikTok' }));
+  }
+  await irA(user, 'Canvas');
+  const redes = screen.getByRole('list', { name: 'Redes' });
+  expect(within(redes).getByText('Advertencia')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Aplicar guía 9:16' }));
+  expect(within(redes).getByText('Correcto')).toBeInTheDocument();
+  expect(within(redes).getByText('Personalizado')).toBeInTheDocument();
+  await waitFor(() =>
+    expect(alGuardarBorrador.mock.lastCall?.[0].destinos).toContainEqual(
+      expect.objectContaining({ platform: 'tiktok', overrides: { crop: expect.objectContaining({ aspect: '9:16' }) } }),
+    ),
+  );
+});
