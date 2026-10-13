@@ -97,6 +97,13 @@ function overridesDeFormulario(o: Destino['overrides'] | undefined, zona: string
   return Object.keys(formulario).length > 0 ? formulario : undefined;
 }
 
+// Los overrides de la entrada con la hora como Date, como los lee validarPublicacion.
+export function overridesDeDestino(o: OverridesEntrada | undefined): Destino['overrides'] {
+  if (!o) return {};
+  const { scheduledAt, ...resto } = o;
+  return scheduledAt ? { ...resto, scheduledAt: new Date(scheduledAt) } : resto;
+}
+
 export function aEntrada(form: FormularioPublicacion, zona: string, postId?: string): EntradaPublicacion {
   const destinos = PLATAFORMAS.flatMap((platform): EntradaPublicacion['destinos'] => {
     const format = form.redes[platform];

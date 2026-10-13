@@ -1,4 +1,10 @@
-import { formatearDuracion, MENSAJES_JERARQUIA, validarPublicacion, type ContextoValidacion } from '@omnistream/core';
+import {
+  formatearDuracion,
+  MENSAJES_JERARQUIA,
+  validarPublicacion,
+  type ContextoValidacion,
+  type Problema,
+} from '@omnistream/core';
 
 export type Intencion = 'guardar' | 'programar' | 'publicar_ahora';
 
@@ -10,7 +16,7 @@ export function revisarEnvio(
   contexto: Omit<ContextoValidacion, 'hora'> & { duracionMaximaTiktokSeg?: number },
   intencion: Intencion,
   esProgramada: boolean,
-): { errores: string[]; advertencias: string[] } {
+): { errores: string[]; advertencias: string[]; problemas: Problema[] } {
   const hora =
     intencion === 'publicar_ahora'
       ? 'inmediata'
@@ -29,5 +35,10 @@ export function revisarEnvio(
   // Un borrador puede guardarse incompleto; solo la jerarquía debe ser válida.
   if (intencion === 'guardar' && !esProgramada) errores = errores.filter((m) => MENSAJES_DE_JERARQUIA.has(m));
   if (!contexto.publicacion.title.trim()) errores.unshift('Escribe un título');
-  return { errores, advertencias: problemas.filter((p) => p.nivel === 'advertencia').map((p) => p.mensaje) };
+  // problemas son los de validarPublicacion sin filtrar: el Canvas calcula con ellos el estado de cada red.
+  return {
+    errores,
+    advertencias: problemas.filter((p) => p.nivel === 'advertencia').map((p) => p.mensaje),
+    problemas,
+  };
 }

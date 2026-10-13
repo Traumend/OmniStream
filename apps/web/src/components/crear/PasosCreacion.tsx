@@ -3,6 +3,7 @@
 import {
   contarCaracteres,
   contenidoFinal,
+  esPersonalizado,
   FORMATOS_POR_RED,
   modoDePublicacion,
   PLATAFORMAS,
@@ -24,13 +25,21 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ConfirmarEnvio } from '@/components/publicaciones/ConfirmarEnvio';
 import type { EstadoInfoTiktok } from '@/lib/conexiones/useInfoCreadorTiktok';
 import type { GestorSubidas, ProgresoSubida } from '@/lib/archivos/gestorSubidas';
+import { useUrlsFotogramas } from '@/lib/archivos/repositorio';
 import { crearAutoguardado, type Autoguardado, type EstadoGuardado } from '@/lib/crear/autoguardado';
 import { ETIQUETAS_PASO, PASOS, type Paso } from '@/lib/crear/pasos';
-import { aEntrada, aFormulario, FORMULARIO_VACIO, type FormularioPublicacion } from '@/lib/publicaciones/formulario';
+import {
+  aEntrada,
+  aFormulario,
+  FORMULARIO_VACIO,
+  overridesDeDestino,
+  type FormularioPublicacion,
+} from '@/lib/publicaciones/formulario';
 import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
 import { Seccion } from './comunes';
 import { PasoArchivo } from './PasoArchivo';
+import { PasoCanvas } from './PasoCanvas';
 import { PasoContenido } from './PasoContenido';
 import { PasoDestinos } from './PasoDestinos';
 import { PasoPublicar } from './PasoPublicar';
@@ -155,6 +164,7 @@ export function PasosCreacion({
 
   const esProgramada = inicial?.destinos.some((d) => d.status === 'programada') ?? false;
   const asset = archivos.find((a) => a.id === form.assetId) ?? null;
+  const urlsFotogramas = useUrlsFotogramas(asset ?? undefined);
   const opcionesPrincipal = principales.filter((p) => p.publicacion.id !== postId);
   const principal = opcionesPrincipal.find((p) => p.publicacion.id === form.parentId)?.publicacion ?? null;
   const entrada = useMemo(() => aEntrada(form, zona, postId), [form, zona, postId]);
@@ -221,6 +231,9 @@ export function PasosCreacion({
     return [{ red: destino.platform, largo, limite }];
   });
 
+  const destinosValidacion = entrada.destinos.map((d) => ({ ...d, overrides: overridesDeDestino(d.overrides) }));
+
+  // Una sola fuente de reglas: el Canvas y el envío usan validarPublicacion con los ajustes de cada red.
   function validar(intencion: Intencion) {
     return revisarEnvio(
       {
@@ -231,7 +244,7 @@ export function PasosCreacion({
           scheduledAt: entrada.scheduledAt ? new Date(entrada.scheduledAt) : null,
           parentId: entrada.parentId ?? undefined,
         },
-        destinos: entrada.destinos.map((d) => ({ ...d, overrides: {} })),
+        destinos: destinosValidacion,
         asset,
         principal,
         tipoActual: inicial?.publicacion.kind,
@@ -330,9 +343,17 @@ export function PasosCreacion({
         />
       )}
       {paso === 'canvas' && (
-        <Seccion titulo="Canvas">
-          <p className="text-texto-secundario">El canvas estará disponible pronto.</p>
-        </Seccion>
+        <PasoCanvas
+          asset={asset}
+          destinos={destinosValidacion.map((d) => ({
+            platform: d.platform,
+            format: d.format,
+            crop: d.overrides.crop,
+            personalizado: esPersonalizado(d),
+          }))}
+          problemas={validar('guardar').problemas}
+          urls={urlsFotogramas}
+        />
       )}
       {paso === 'contenido' && (
         <PasoContenido
