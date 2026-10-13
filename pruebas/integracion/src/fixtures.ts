@@ -22,6 +22,8 @@ export interface Fixtures {
   video: string;
   imagen: string;
   danado: string;
+  videoHorizontal: string; // 1280×720, 4 s, con audio
+  videoRotado: string; // 1280×720 con rotación de pantalla de 90° (se ve 720×1280)
 }
 
 export async function prepararFixtures(): Promise<Fixtures> {
@@ -31,6 +33,8 @@ export async function prepararFixtures(): Promise<Fixtures> {
     video: join(directorio, 'video-vertical.mp4'),
     imagen: join(directorio, 'imagen.jpg'),
     danado: join(directorio, 'danado.mp4'),
+    videoHorizontal: join(directorio, 'video-horizontal.mp4'),
+    videoRotado: join(directorio, 'video-rotado.mp4'),
   };
   const ffmpeg = ffmpegPath as unknown as string;
   if (!existsSync(fixtures.video)) {
@@ -46,5 +50,19 @@ export async function prepararFixtures(): Promise<Fixtures> {
     await ejecutar(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=0xB08442:s=1200x800', '-frames:v', '1', '-y', fixtures.imagen]);
   }
   if (!existsSync(fixtures.danado)) await writeFile(fixtures.danado, randomBytes(64 * 1024));
+  if (!existsSync(fixtures.videoHorizontal)) {
+    await ejecutar(ffmpeg, [
+      '-v', 'error',
+      '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30',
+      '-f', 'lavfi', '-i', 'sine=frequency=440',
+      '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart',
+      '-y', fixtures.videoHorizontal,
+    ]);
+  }
+  if (!existsSync(fixtures.videoRotado)) {
+    await ejecutar(ffmpeg, [
+      '-v', 'error', '-display_rotation', '90', '-i', fixtures.videoHorizontal, '-c', 'copy', '-y', fixtures.videoRotado,
+    ]);
+  }
   return fixtures;
 }

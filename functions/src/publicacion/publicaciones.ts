@@ -5,6 +5,7 @@ import { claveCifrado, REGION, SECRETOS_CONECTORES } from '../config';
 import { crearCifrador } from '../conexiones/cifrado';
 import { proveedoresReales } from '../conexiones/proveedores';
 import { sesionVigente, type DependenciasSesion } from '../conexiones/sesiones';
+import { encoladorRecortes } from './generarRecorte';
 import type { DependenciasAccion } from './acciones/dependencias';
 import { guardarPublicacion } from './acciones/guardar';
 import { importarYoutube, type DependenciasImportar } from './acciones/importar';
@@ -85,6 +86,7 @@ export const publicaciones = onCall(
         db: getFirestore(),
         ahora: new Date(),
         encolar: encoladorCloudTasks(),
+        encolarRecorte: encoladorRecortes(),
         sesion: (red) => sesionVigente(red, sesionesReales()),
         http: fetch,
       }),

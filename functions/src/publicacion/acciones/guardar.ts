@@ -2,11 +2,13 @@ import {
   destinoNuevo,
   esEditable,
   fechaBasePromocion,
+  hashRecorte,
   leerPublicacion,
   mensajeProblemas,
   normalizarHashtags,
   problemasDeJerarquia,
   recalcularFechas,
+  recortePermitido,
   tipoDePublicacion,
   validarPublicacion,
   type Destino,
@@ -16,12 +18,29 @@ import {
 } from '@omnistream/core';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { leerContexto, leerPublicacionCompleta, refDestino, refPublicacion } from '../firestore';
+import type { TareaRecorte } from '../generarRecorte';
+import { leerAsset, leerContexto, leerPublicacionCompleta, refDestino, refPublicacion } from '../firestore';
 import type { DependenciasAccion } from './dependencias';
 import { programarPublicacion } from './programar';
 import { promocionInicial } from './promocion';
 
 const noEditable = () => new HttpsError('failed-precondition', 'Esta publicación ya no se puede editar.');
+
+type DestinoEntrada = EntradaPublicacion['destinos'][number];
+
+// Los overrides se guardan tal como llegan, sin claves vacías (Firestore no admite undefined).
+function overridesDe(destino: DestinoEntrada): Destino['overrides'] {
+  const o = destino.overrides ?? {};
+  const overrides: Destino['overrides'] = {};
+  if (o.text !== undefined) overrides.text = o.text;
+  if (o.hashtags !== undefined) overrides.hashtags = normalizarHashtags(o.hashtags);
+  if (o.title !== undefined) overrides.title = o.title;
+  if (o.crop) overrides.crop = o.crop;
+  if (o.scheduledAt !== undefined) overrides.scheduledAt = new Date(o.scheduledAt);
+  return overrides;
+}
+
+const MENSAJE_RECORTE_NO_PERMITIDO = 'El recorte de video se permite para videos de hasta 15 minutos y 2 GB.';
 
 function referenciaAlGuardar(actual: EstadoReferencia, esHija: boolean): EstadoReferencia {
   if (esHija) return actual === 'no_aplica' ? 'en_espera' : actual;
@@ -55,6 +74,14 @@ export async function guardarPublicacion(
   });
   if (problemas.length > 0) throw new HttpsError('failed-precondition', problemas.join(' '));
 
+  // El recorte que no se puede generar se rechaza también en un borrador.
+  if (entrada.assetId && entrada.destinos.some((d) => d.overrides?.crop)) {
+    const documento = await db.collection('assets').doc(entrada.assetId).get();
+    if (documento.exists && !recortePermitido(leerAsset(documento.id, documento.data()))) {
+      throw new HttpsError('failed-precondition', MENSAJE_RECORTE_NO_PERMITIDO);
+    }
+  }
+
   const kind = tipoDePublicacion(entrada.destinos, entrada.parentId);
   const esHija = kind === 'hija';
   const datos = {
@@ -75,7 +102,7 @@ export async function guardarPublicacion(
     });
     const errores = validarPublicacion({
       publicacion: { ...datos, assetId: entrada.assetId ?? undefined, parentId: entrada.parentId ?? undefined },
-      destinos: entrada.destinos.map((d) => ({ ...d, overrides: {} })),
+      destinos: entrada.destinos.map((d) => ({ ...d, overrides: overridesDe(d) })),
       asset: contexto.asset,
       principal,
       tipoActual: existente?.publicacion.kind,
@@ -89,7 +116,9 @@ export async function guardarPublicacion(
   // Un Principal recibe su lista de promoción al crearse; si ya la tiene, sus fechas siguen a la nueva fecha.
   const promocionNueva = kind === 'principal' ? await promocionInicial(db, datos.scheduledAt) : undefined;
 
+  const recortesPedidos: TareaRecorte[] = [];
   const quitados = await db.runTransaction(async (tx) => {
+    recortesPedidos.length = 0;
     const fresca = existente ? await leerPublicacionCompleta(db, ref.id, tx) : null;
     if (existente && (!fresca || !esEditable(fresca.destinos.map((d) => d.status)))) throw noEditable();
     const actuales = new Map<string, Destino>((fresca?.destinos ?? []).map((d) => [d.platform, d]));
@@ -121,19 +150,28 @@ export async function guardarPublicacion(
     for (const destino of entrada.destinos) {
       const actual = actuales.get(destino.platform);
       const destinoRef = refDestino(db, ref.id, destino.platform);
+      const overrides = overridesDe(destino);
+      // La huella cambia con el recorte y con el archivo; si no cambió, el derivado actual sigue sirviendo.
+      const cropHash = overrides.crop && entrada.assetId ? hashRecorte(entrada.assetId, overrides.crop) : undefined;
+      const pedirDerivado = cropHash !== undefined && actual?.derivative?.cropHash !== cropHash;
+      if (pedirDerivado) recortesPedidos.push({ postId: ref.id, platform: destino.platform, cropHash });
+      const derivadoNuevo = pedirDerivado ? { derivative: { cropHash, status: 'pendiente' } } : {};
       if (!actual) {
-        tx.set(
-          destinoRef,
-          destinoNuevo(destino.platform, destino.format, {
+        tx.set(destinoRef, {
+          ...destinoNuevo(destino.platform, destino.format, {
             esHija,
             ahora,
             youtube: destino.youtube,
             tiktok: destino.tiktok,
           }),
-        );
+          overrides,
+          ...derivadoNuevo,
+        });
       } else {
         tx.update(destinoRef, {
           format: destino.format,
+          overrides,
+          ...(cropHash ? derivadoNuevo : { derivative: FieldValue.delete() }),
           youtube: destino.youtube ?? FieldValue.delete(),
           tiktok: destino.tiktok ?? FieldValue.delete(),
           'parentRef.status': referenciaAlGuardar(actual.parentRef.status, esHija),
@@ -145,6 +183,8 @@ export async function guardarPublicacion(
     for (const destino of sobrantes) tx.delete(refDestino(db, ref.id, destino.platform));
     return sobrantes;
   });
+
+  if (deps.encolarRecorte) for (const tarea of recortesPedidos) await deps.encolarRecorte(tarea);
 
   // Borra también los intentos de los destinos quitados.
   for (const destino of quitados) await db.recursiveDelete(refDestino(db, ref.id, destino.platform));
