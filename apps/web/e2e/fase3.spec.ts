@@ -42,7 +42,6 @@ const redEnCanvas = (page: Page, red: string) =>
 test('un video 16:9 recortado a 9:16 para TikTok y 1:1 para Facebook publica un archivo distinto por red', async ({
   page,
 }) => {
-  // Cada derivado se encola con 60 s de retraso y la publicación lo espera en ciclos de 120 s.
   test.setTimeout(420_000);
   await crearCon(page, fixtures.videoHorizontal, 'video-horizontal.mp4');
   await elegirRedes(page, ['Facebook', 'TikTok']);
@@ -57,21 +56,26 @@ test('un video 16:9 recortado a 9:16 para TikTok y 1:1 para Facebook publica un 
   await irAlPaso(page, 'Contenido');
   const titulo = `Recorte E2E ${Date.now()}`;
   await page.getByLabel('Título').fill(titulo);
-  await irAlPaso(page, 'Publicar');
-  await page.getByRole('button', { name: 'Publicar ahora' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
-  await expect(page).toHaveURL(/\/calendario\?resaltar=/);
-  const postId = new URL(page.url()).searchParams.get('resaltar') as string;
+  await expect(page.getByText('Guardado', { exact: true })).toBeVisible();
+  const postId = new URL(page.url()).searchParams.get('id') as string;
+  expect(postId).toBeTruthy();
 
+  // El emulador de Cloud Tasks no respeta scheduleTime: las esperas de 120 s de publicarDestino se agotarían en
+  // segundos. Se publica cuando los derivados ya están listos; la espera la cubren las pruebas de integración.
   const destino = (red: string) => db.doc(`posts/${postId}/targets/${red}`);
   for (const red of ['tiktok', 'facebook']) {
     await expect
       .poll(async () => (await destino(red).get()).get('derivative.status'), { timeout: 240_000 })
       .toBe('listo');
   }
+
+  await irAlPaso(page, 'Publicar');
+  await page.getByRole('button', { name: 'Publicar ahora' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page).toHaveURL(new RegExp(`/calendario\\?resaltar=${postId}`));
   for (const red of ['tiktok', 'facebook']) {
     await expect
-      .poll(async () => (await destino(red).get()).get('status'), { timeout: 240_000 })
+      .poll(async () => (await destino(red).get()).get('status'), { timeout: 120_000 })
       .toBe('pendiente_manual');
   }
   const rutaTiktok = (await destino('tiktok').get()).get('derivative.storagePath') as string;
