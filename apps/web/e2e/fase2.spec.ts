@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { adminDemo } from '@omnistream/pruebas-integracion/admin';
 import { prepararFixtures, type Fixtures } from '@omnistream/pruebas-integracion/fixtures';
-import { entrarComo, subirArchivo } from './ayudantes';
+import { entrarComo, irAlPaso, subirArchivo } from './ayudantes';
 
 const { db } = adminDemo('e2e');
 const REDES = ['Facebook', 'Instagram', 'YouTube', 'TikTok'];
@@ -28,6 +28,7 @@ async function entrarYCrear(page: Page) {
     .click();
   await page.getByRole('link', { name: 'Crear publicación' }).click();
   await expect(page.getByRole('heading', { name: 'Crear publicación' })).toBeVisible();
+  await irAlPaso(page, 'Destinos');
 }
 
 const postIdResaltado = (page: Page) => new URL(page.url()).searchParams.get('resaltar') as string;
@@ -36,8 +37,10 @@ test('programa a 4 redes en modo manual, llega a pendientes con aviso y se marca
   await entrarYCrear(page);
   for (const red of REDES) await expect(page.getByRole('checkbox', { name: red })).toBeChecked();
   const titulo = `Prueba E2E ${Date.now()}`;
+  await irAlPaso(page, 'Contenido');
   await page.getByLabel('Título').fill(titulo);
   await page.getByLabel('Texto', { exact: true }).fill('Hola desde OmniStream');
+  await irAlPaso(page, 'Publicar');
   await page.getByRole('button', { name: 'Publicar ahora' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
   await expect(page).toHaveURL(/\/calendario\?resaltar=/);
@@ -71,10 +74,12 @@ test('mover una publicación en el calendario no la duplica', async ({ page }) =
   await expect(page.getByRole('checkbox', { name: 'Facebook' })).toBeChecked();
   await page.getByLabel('Formato en Facebook').selectOption('reel');
   const titulo = `Mover E2E ${Date.now()}`;
+  await irAlPaso(page, 'Contenido');
   await page.getByLabel('Título').fill(titulo);
   await page.getByLabel('Texto', { exact: true }).fill('Se mueve un día');
   const manana = diaUtc(1);
   const pasadoManana = diaUtc(2);
+  await irAlPaso(page, 'Publicar');
   await page.getByLabel('Fecha').fill(manana);
   await page.getByLabel('Hora').fill('10:00');
   await page.getByRole('button', { name: 'Programar' }).click();

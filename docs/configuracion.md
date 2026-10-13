@@ -121,7 +121,16 @@ Parte de un proyecto que ya cumple la fase 2A. Sigue los pasos en orden; `{URL_P
    - Desconecta y vuelve a conectar.
    - Registra el resultado de V1 a V3 en la spec (sección 15).
 
-## 5. Próximas fases
+## 5. Producción: fase 3 (Smart Canvas)
+
+1. **Cola de recortes.** El flujo "Desplegar" crea la cola de `generarRecorte` (4 GiB, hasta 30 min por recorte). No hace falta configurar nada.
+2. **Costos.** Cada recorte de video consume cómputo de Cloud Functions, aproximadamente el tiempo que dura recodificar el video. Con el presupuesto de 1 USD, revisa el consumo en Facturación tras las primeras semanas. Recortar solo las redes que lo necesitan reduce el costo; con la retención en 0 días, los derivados se borran junto con el original.
+3. **Verificación (criterio 3):**
+   - Recorta un video 16:9 a 9:16 para TikTok y a 1:1 para Facebook, y publica.
+   - Confirma que cada red recibe su archivo: el paquete manual descarga el derivado, y por API cada publicación tiene la proporción elegida.
+   - Confirma que el estado de cada red en el Canvas coincide con lo que "Programar" bloquea.
+
+## 6. Próximas fases
 
 | Elemento | Fase |
 |---|---|

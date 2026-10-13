@@ -87,3 +87,8 @@ export async function subirArchivo(page: Page, ruta: string, nombre: string): Pr
   await expect(tarjetas).toHaveCount(antes + 1, { timeout: 60_000 });
   await expect(tarjetas.first().getByText('Listo')).toBeVisible({ timeout: 90_000 });
 }
+
+// Cambia de paso en Crear o Editar con la barra de pasos.
+export async function irAlPaso(page: Page, nombre: string): Promise<void> {
+  await page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name: nombre, exact: true }).click();
+}

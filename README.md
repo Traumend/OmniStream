@@ -6,6 +6,7 @@ Herramienta personal para programar y publicar contenido en Facebook, Instagram,
 - Plan de la fase 1: [docs/superpowers/plans/2026-10-07-fase-1-fundacion.md](docs/superpowers/plans/2026-10-07-fase-1-fundacion.md)
 - Plan de la fase 2A: [docs/superpowers/plans/2026-10-07-fase-2a-publicacion-asistida.md](docs/superpowers/plans/2026-10-07-fase-2a-publicacion-asistida.md)
 - Plan de la fase 2B: [docs/superpowers/plans/2026-10-08-fase-2b-conectores.md](docs/superpowers/plans/2026-10-08-fase-2b-conectores.md)
+- Plan de la fase 3: [docs/superpowers/plans/2026-10-09-fase-3-smart-canvas.md](docs/superpowers/plans/2026-10-09-fase-3-smart-canvas.md)
 - Configuración y ejecución local: [docs/configuracion.md](docs/configuracion.md)
 
 ## Estructura
