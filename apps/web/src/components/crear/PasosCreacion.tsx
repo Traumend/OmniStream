@@ -29,7 +29,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ConfirmarEnvio } from '@/components/publicaciones/ConfirmarEnvio';
 import type { EstadoInfoTiktok } from '@/lib/conexiones/useInfoCreadorTiktok';
 import type { GestorSubidas, ProgresoSubida } from '@/lib/archivos/gestorSubidas';
-import { useUrlsFotogramas } from '@/lib/archivos/repositorio';
+import { useUrlDescarga, useUrlsFotogramas } from '@/lib/archivos/repositorio';
 import { crearAutoguardado, type Autoguardado, type EstadoGuardado } from '@/lib/crear/autoguardado';
 import { ETIQUETAS_PASO, PASOS, type Paso } from '@/lib/crear/pasos';
 import {
@@ -42,7 +42,6 @@ import {
 } from '@/lib/publicaciones/formulario';
 import { revisarEnvio, type Intencion } from '@/lib/publicaciones/revisarEnvio';
 import { cn } from '@/lib/utils';
-import { Seccion } from './comunes';
 import { AjustesRed } from './canvas/AjustesRed';
 import { MarcoRecorte } from './canvas/MarcoRecorte';
 import { PasoArchivo } from './PasoArchivo';
@@ -50,6 +49,7 @@ import { PasoCanvas } from './PasoCanvas';
 import { PasoContenido } from './PasoContenido';
 import { PasoDestinos } from './PasoDestinos';
 import { PasoPublicar } from './PasoPublicar';
+import { PasoVistaPrevia, type PropsPasoVistaPrevia } from './PasoVistaPrevia';
 
 export { ETIQUETAS_PASO, PASOS, type Paso };
 export type { Intencion };
@@ -100,6 +100,14 @@ function urlConPaso(paso: Paso, ruta = window.location.pathname): string {
   const parametros = new URLSearchParams(window.location.search);
   parametros.set('paso', paso);
   return `${ruta}?${parametros.toString()}`;
+}
+
+// La URL de descarga se pide solo al abrir la vista previa.
+function VistaPrevia({ asset, ...props }: Omit<PropsPasoVistaPrevia, 'medio'> & { asset: Asset | null }) {
+  const { url } = useUrlDescarga(asset && asset.status !== 'purgado' ? asset.storagePath : undefined);
+  const medio =
+    asset && url ? { tipo: asset.kind === 'image' ? ('imagen' as const) : ('video' as const), url } : undefined;
+  return <PasoVistaPrevia {...props} medio={medio} proporcionArchivo={asset?.aspect} />;
 }
 
 export function PasosCreacion({
@@ -436,9 +444,29 @@ export function PasosCreacion({
         />
       )}
       {paso === 'vista' && (
-        <Seccion titulo="Vista previa">
-          <p className="text-texto-secundario">La vista previa estará disponible pronto.</p>
-        </Seccion>
+        <VistaPrevia
+          asset={asset}
+          cuentas={Object.fromEntries(
+            PLATAFORMAS.flatMap((red) => {
+              const cuenta = conexiones[red]?.account;
+              return cuenta ? [[red, { nombre: cuenta.name, avatarUrl: cuenta.avatarUrl }]] : [];
+            }),
+          )}
+          destinos={destinosValidacion.map((destino) => {
+            const referencia =
+              destino.platform === 'tiktok' && entrada.parentId
+                ? textoReferencia(principal?.title ?? '', URL_DE_MUESTRA)
+                : undefined;
+            const contenido = contenidoFinal(entrada, destino, referencia);
+            return {
+              platform: destino.platform,
+              format: destino.format,
+              crop: destino.overrides.crop,
+              titulo: contenido.titulo,
+              texto: contenido.texto,
+            };
+          })}
+        />
       )}
       {paso === 'publicar' && (
         <PasoPublicar
@@ -446,6 +474,7 @@ export function PasosCreacion({
           hora={form.hora}
           zona={zona}
           errores={errores}
+          problemas={validar('guardar').problemas}
           esProgramada={esProgramada}
           enviando={enviando}
           alCambiarFecha={actualizar}

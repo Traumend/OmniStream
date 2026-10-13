@@ -1,9 +1,11 @@
 'use client';
 
+import { ETIQUETAS_RED, PLATAFORMAS, type Platform, type Problema } from '@omnistream/core';
 import { ListaErrores } from '@/components/publicaciones/ListaErrores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Intencion } from '@/lib/publicaciones/revisarEnvio';
+import { cn } from '@/lib/utils';
 import { CAMPO, Campo, Seccion } from './comunes';
 
 export interface PropsPasoPublicar {
@@ -11,6 +13,7 @@ export interface PropsPasoPublicar {
   hora: string;
   zona: string;
   errores: string[];
+  problemas: Problema[];
   esProgramada: boolean;
   enviando: boolean;
   alCambiarFecha(cambios: { fecha?: string; hora?: string }): void;
@@ -23,11 +26,20 @@ export function PasoPublicar({
   hora,
   zona,
   errores,
+  problemas,
   esProgramada,
   enviando,
   alCambiarFecha,
   alEnviar,
 }: PropsPasoPublicar) {
+  const grupos: { titulo: string; problemas: Problema[] }[] = [
+    { titulo: 'Todas las redes', problemas: problemas.filter((p) => !p.red) },
+    ...PLATAFORMAS.map((red: Platform) => ({
+      titulo: ETIQUETAS_RED[red],
+      problemas: problemas.filter((p) => p.red === red),
+    })),
+  ].filter((g) => g.problemas.length > 0);
+  const hayErrores = problemas.some((p) => p.nivel === 'error');
   return (
     <>
       <Seccion titulo="Fecha y hora">
@@ -53,6 +65,37 @@ export function PasoPublicar({
         </div>
         <p className="text-sm text-texto-secundario">Zona horaria: {zona}</p>
       </Seccion>
+
+      <section aria-label="Resumen" className="neu-elevado flex flex-col gap-3 p-6">
+        <h2 className="font-heading text-2xl text-texto">Resumen</h2>
+        {grupos.length === 0 ? (
+          <p className="text-exito">Todo listo para publicar.</p>
+        ) : (
+          <>
+            {grupos.map((grupo) => (
+              <div key={grupo.titulo} role="group" aria-label={grupo.titulo} className="flex flex-col gap-1">
+                <h3 className="font-heading text-lg text-texto">{grupo.titulo}</h3>
+                <ul className="flex flex-col gap-1 text-sm">
+                  {grupo.problemas.map((p) => (
+                    <li
+                      key={p.mensaje}
+                      data-nivel={p.nivel}
+                      className={cn(p.nivel === 'error' ? 'text-peligro' : 'text-alerta')}
+                    >
+                      {p.mensaje}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <p className={cn('text-sm', hayErrores ? 'text-peligro' : 'text-texto-secundario')}>
+              {hayErrores
+                ? 'Corrige los errores para programar o publicar.'
+                : 'Las advertencias no bloquean: se pedirá confirmación.'}
+            </p>
+          </>
+        )}
+      </section>
 
       <ListaErrores errores={errores} />
 

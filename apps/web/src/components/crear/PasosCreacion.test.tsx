@@ -413,3 +413,17 @@ it('la miniatura propia elige una imagen de la Biblioteca y va como thumbnail.as
     }),
   );
 });
+
+it('Programar guarda lo pendiente antes de programar', async () => {
+  const { user, alEnviar, alGuardarBorrador } = montar({ retardoAutoguardadoMs: 60_000 });
+  await elegirArchivo(user, 'vertical.mp4');
+  await escribirTitulo(user, 'Hola');
+  await ponerFecha(user);
+  expect(alGuardarBorrador).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Programar' }));
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirmar' }));
+  await waitFor(() => expect(alEnviar).toHaveBeenCalled());
+  expect(alGuardarBorrador).toHaveBeenCalledTimes(1);
+  expect(alGuardarBorrador.mock.invocationCallOrder[0]).toBeLessThan(alEnviar.mock.invocationCallOrder[0] as number);
+  expect(alEnviar).toHaveBeenCalledWith(expect.objectContaining({ postId: 'nuevo' }), 'programar');
+});
