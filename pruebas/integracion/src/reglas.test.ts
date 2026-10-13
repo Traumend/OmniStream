@@ -100,6 +100,7 @@ describe('Storage', () => {
     await entorno.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'assets/a1'), { status: 'subiendo' });
       await uploadBytes(ref(ctx.storage(), 'fotogramas/a1/start.jpg'), bytes, { contentType: 'image/jpeg' });
+      await uploadBytes(ref(ctx.storage(), 'derivados/p1/tiktok/h1.mp4'), bytes, { contentType: 'video/mp4' });
       await uploadBytes(ref(ctx.storage(), 'originales/a1'), bytes, { contentType: 'video/mp4' });
     });
   });
@@ -120,6 +121,13 @@ describe('Storage', () => {
   });
   it('propietario lee fotogramas', async () => {
     await assertSucceeds(getBytes(ref(propietario.storage(), 'fotogramas/a1/start.jpg')));
+  });
+  it('el propietario lee derivados y no los escribe', async () => {
+    await assertSucceeds(getBytes(ref(propietario.storage(), 'derivados/p1/tiktok/h1.mp4')));
+    await assertFails(
+      uploadBytes(ref(propietario.storage(), 'derivados/p1/tiktok/h2.mp4'), bytes, { contentType: 'video/mp4' }),
+    );
+    await assertFails(getBytes(ref(extrano.storage(), 'derivados/p1/tiktok/h1.mp4')));
   });
   it('usuario sin owner no lee originales', async () => {
     await assertFails(getBytes(ref(extrano.storage(), 'originales/a1')));

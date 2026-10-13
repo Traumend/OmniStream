@@ -14,5 +14,9 @@ service firebase.storage {
     match /fotogramas/{assetId}/{archivo} {
       allow read, delete: if esPropietario();
     }
+    // Los derivados los escribe generarRecorte; el propietario solo los lee (paquete manual).
+    match /derivados/{postId}/{red}/{archivo} {
+      allow read: if esPropietario();
+    }
   }
 }

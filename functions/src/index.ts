@@ -12,6 +12,7 @@ export { procesarArchivo } from './archivos/procesarArchivo';
 export { publicaciones } from './publicacion/publicaciones';
 export { comentarReferencia } from './publicacion/comentarReferencia';
 export { publicarDestino } from './publicacion/publicarDestino';
+export { generarRecorte } from './publicacion/generarRecorte';
 export { borradoDatosMeta } from './conexiones/borradoDatosMeta';
 export { conexiones, retornoConexion } from './conexiones/conexiones';
 export { media } from './conexiones/media';

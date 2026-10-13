@@ -39,29 +39,83 @@ export async function prepararFixtures(): Promise<Fixtures> {
   const ffmpeg = ffmpegPath as unknown as string;
   if (!existsSync(fixtures.video)) {
     await ejecutar(ffmpeg, [
-      '-v', 'error',
-      '-f', 'lavfi', '-i', 'testsrc=size=720x1280:rate=30',
-      '-f', 'lavfi', '-i', 'sine=frequency=440',
-      '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart',
-      '-y', fixtures.video,
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=720x1280:rate=30',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440',
+      '-t',
+      '4',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-movflags',
+      '+faststart',
+      '-y',
+      fixtures.video,
     ]);
   }
   if (!existsSync(fixtures.imagen)) {
-    await ejecutar(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=0xB08442:s=1200x800', '-frames:v', '1', '-y', fixtures.imagen]);
+    await ejecutar(ffmpeg, [
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0xB08442:s=1200x800',
+      '-frames:v',
+      '1',
+      '-y',
+      fixtures.imagen,
+    ]);
   }
   if (!existsSync(fixtures.danado)) await writeFile(fixtures.danado, randomBytes(64 * 1024));
   if (!existsSync(fixtures.videoHorizontal)) {
     await ejecutar(ffmpeg, [
-      '-v', 'error',
-      '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30',
-      '-f', 'lavfi', '-i', 'sine=frequency=440',
-      '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart',
-      '-y', fixtures.videoHorizontal,
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=1280x720:rate=30',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440',
+      '-t',
+      '4',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-movflags',
+      '+faststart',
+      '-y',
+      fixtures.videoHorizontal,
     ]);
   }
   if (!existsSync(fixtures.videoRotado)) {
     await ejecutar(ffmpeg, [
-      '-v', 'error', '-display_rotation', '90', '-i', fixtures.videoHorizontal, '-c', 'copy', '-y', fixtures.videoRotado,
+      '-v',
+      'error',
+      '-display_rotation',
+      '90',
+      '-i',
+      fixtures.videoHorizontal,
+      '-c',
+      'copy',
+      '-y',
+      fixtures.videoRotado,
     ]);
   }
   return fixtures;
